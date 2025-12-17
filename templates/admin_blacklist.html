@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Blacklist - Admin - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Blacklisted Customers</h1>
+        <p class="page-subtitle">Manage restricted accounts</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+
+        {% if blacklisted %}
+        <div class="admin-menu-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Reason</th>
+                        <th>No-Shows</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in blacklisted %}
+                    <tr>
+                        <td>{{ item['id'] }}</td>
+                        <td>
+                            {% if item['first_name'] %}
+                                {{ item['first_name'] }} {{ item['last_name'] }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ item['email'] or '-' }}</td>
+                        <td>{{ item['phone'] or '-' }}</td>
+                        <td>{{ item['reason'] or 'Not specified' }}</td>
+                        <td>{{ item['no_show_count'] or 0 }}</td>
+                        <td>{{ item['created_at'][:10] }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('admin_remove_blacklist', blacklist_id=item['id']) }}" 
+                                  onsubmit="return confirm('Remove this customer from blacklist?')" style="display:inline;">
+                                <button type="submit" class="btn btn-small btn-available">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No blacklisted customers.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

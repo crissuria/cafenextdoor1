@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Menu - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Manage Menu Items</h1>
+        <p class="page-subtitle">View, edit, and delete menu items</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            {% if session.user_role in ['admin', 'manager'] %}
+            <a href="{{ url_for('admin_add') }}" class="btn btn-primary">Add New Item</a>
+            {% endif %}
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+        </div>
+
+        {% if items %}
+            <div class="admin-menu-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="id">ID <span class="sort-indicator">↕</span></th>
+                            <th class="sortable" data-sort="name">Name <span class="sort-indicator">↕</span></th>
+                            <th class="sortable" data-sort="category">Category <span class="sort-indicator">↕</span></th>
+                            <th class="sortable" data-sort="price">Price <span class="sort-indicator">↕</span></th>
+                            <th>Status</th>
+                            <th>Description</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                            <tr data-id="{{ item['id'] }}" data-name="{{ item['name'] }}" data-category="{{ item['category'] }}" data-price="{{ item['price'] }}" class="{% if not item['is_available'] %}sold-out-row{% endif %}">
+                                <td>{{ item['id'] }}</td>
+                                <td><strong>{{ item['name'] }}</strong></td>
+                                <td>{{ item['category'] }}</td>
+                                <td>P{{ "%.2f"|format(item['price']) }}</td>
+                                <td>
+                                    {% if item['is_available'] %}
+                                        <span class="status-badge status-active">Available</span>
+                                    {% else %}
+                                        <span class="status-badge status-soldout">Sold Out</span>
+                                    {% endif %}
+                                </td>
+                                <td class="description-cell">{{ item['description'] or '-' }}</td>
+                                <td class="action-buttons">
+                                    <form method="POST" action="{{ url_for('admin_toggle_availability', item_id=item['id']) }}" style="display: inline;">
+                                        <button type="submit" class="btn btn-small {% if item['is_available'] %}btn-soldout{% else %}btn-available{% endif %}">
+                                            {% if item['is_available'] %}Mark Sold Out{% else %}Mark Available{% endif %}
+                                        </button>
+                                    </form>
+                                    {% if session.user_role in ['admin', 'manager'] %}
+                                    <a href="{{ url_for('admin_edit', item_id=item['id']) }}" class="btn btn-small btn-edit">Edit</a>
+                                    <form method="POST" action="{{ url_for('admin_delete', item_id=item['id']) }}" style="display: inline;" onsubmit="return confirm(&quot;Are you sure you want to delete {{ item['name'] }}?&quot;);">
+                                        <button type="submit" class="btn btn-small btn-delete">Delete</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <p>No menu items found. {% if session.user_role in ['admin', 'manager'] %}<a href="{{ url_for('admin_add') }}">Add your first item</a>{% endif %}</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

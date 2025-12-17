@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Error {{ error_code }} - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Error {{ error_code }}</h1>
+        <p class="page-subtitle">{{ error_message }}</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="error-container">
+            <div class="error-content">
+                <h2>{{ error_code }}</h2>
+                <p>{{ error_message }}</p>
+                <div class="error-actions">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">Go to Home</a>
+                    <a href="javascript:history.back()" class="btn btn-secondary">Go Back</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

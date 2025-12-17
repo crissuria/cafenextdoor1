@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Add Menu Item - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Add Menu Item</h1>
+        <p class="page-subtitle">Add a new item to the cafe menu</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-form-container">
+            <form method="POST" action="{{ url_for('admin_add') }}" class="admin-form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="name">Item Name *</label>
+                    <input type="text" id="name" name="name" required placeholder="e.g., Espresso">
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" rows="3" placeholder="Brief description of the item"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="price">Price (P) *</label>
+                        <input type="number" id="price" name="price" step="0.01" min="0" required placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Category *</label>
+                        <select id="category" name="category" required>
+                            <option value="">Select a category</option>
+                            <option value="Hot Drinks">Hot Drinks</option>
+                            <option value="Cold Drinks">Cold Drinks</option>
+                            <option value="Pastries">Pastries</option>
+                            <option value="Desserts">Desserts</option>
+                            <option value="Sandwiches">Sandwiches</option>
+                            <option value="Salads">Salads</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="image_file">Upload Image (Optional)</label>
+                    <input type="file" id="image_file" name="image_file" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
+                    <small>Upload an image file (PNG, JPG, GIF, WEBP - max 16MB)</small>
+                </div>
+                <div class="form-group">
+                    <label for="image_url">Or Enter Image URL (Optional)</label>
+                    <input type="url" id="image_url" name="image_url" placeholder="https://example.com/image.jpg">
+                    <small>Alternatively, enter a URL to an image for this menu item</small>
+                </div>
+                
+                <!-- Ingredients Section -->
+                <div class="form-group ingredients-section">
+                    <label>
+                        Ingredients 
+                        <span class="optional-badge">Optional</span>
+                        <span class="recommended-badge">Recommended</span>
+                    </label>
+                    <small>Select ingredients required for this menu item and specify the quantity needed per serving. This helps with inventory tracking and automatic stock management.</small>
+                    <div class="ingredients-grid" id="ingredients-list">
+                        {% if ingredients %}
+                        {% for ingredient in ingredients %}
+                        <div class="ingredient-item">
+                            <div class="ingredient-label-wrapper">
+                                <label class="ingredient-checkbox-label">
+                                    <input type="checkbox" 
+                                           name="ingredient_ids" 
+                                           value="{{ ingredient.id }}" 
+                                           class="ingredient-checkbox"
+                                           data-ingredient-id="{{ ingredient.id }}"
+                                           onchange="toggleQuantityInput(this)">
+                                </label>
+                                <span class="ingredient-name">{{ ingredient.name }}</span>
+                                <span class="ingredient-unit">({{ ingredient.unit }})</span>
+                            </div>
+                            <div class="quantity-input-wrapper" style="display: none;">
+                                <label class="quantity-label">Quantity per serving:</label>
+                                <input type="number" 
+                                       name="ingredient_{{ ingredient.id }}_quantity" 
+                                       step="0.01" 
+                                       min="0.01" 
+                                       placeholder="0.00" 
+                                       class="ingredient-quantity"
+                                       disabled>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <p class="no-ingredients">No ingredients available. <a href="{{ url_for('admin_add_ingredient') }}">Add ingredients first</a>.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Add Menu Item</button>
+                    <a href="{{ url_for('menu') }}" class="btn btn-secondary">View Menu</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

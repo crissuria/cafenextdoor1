@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}{{ (session.user_role or 'admin')|capitalize }} Dashboard - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">{{ (session.user_role or 'admin')|capitalize }} Dashboard</h1>
+        <p class="page-subtitle">Welcome, {{ session.user_full_name or session.username }}! Manage your cafe operations</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-dashboard-grid">
+            <!-- All roles can view orders -->
+            <a href="{{ url_for('admin_orders') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/cnd-order_icon.png') }}" alt="Manage Orders">
+                </div>
+                <h3>Manage Orders</h3>
+                <p>View and manage customer orders</p>
+            </a>
+            
+            <!-- All roles can view messages -->
+            <a href="{{ url_for('admin_messages') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/icon_message.png') }}" alt="View Messages">
+                </div>
+                <h3>View Messages</h3>
+                <p>Read customer messages from contact form</p>
+            </a>
+            
+            <!-- All roles can view menu -->
+            <a href="{{ url_for('admin_menu') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/icon_manage.png') }}" alt="View Menu">
+                </div>
+                <h3>{% if session.user_role in ['admin', 'manager'] %}Manage Menu{% else %}View Menu{% endif %}</h3>
+                <p>{% if session.user_role in ['admin', 'manager'] %}View, add, edit, and delete menu items{% else %}View current menu items{% endif %}</p>
+            </a>
+            
+            <!-- Manager and Admin only -->
+            {% if session.user_role in ['admin', 'manager'] %}
+            <a href="{{ url_for('admin_add') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/icon_add.png') }}" alt="Add Menu Item">
+                </div>
+                <h3>Add Menu Item</h3>
+                <p>Add a new item to the menu</p>
+            </a>
+            
+            <a href="{{ url_for('admin_promotions') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/icons8-promo-80.png') }}" alt="Promotions">
+                </div>
+                <h3>Promotions</h3>
+                <p>Manage discount codes and offers</p>
+            </a>
+            
+            <a href="{{ url_for('admin_inventory') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/cnd-inventory_icon.png') }}" alt="Inventory">
+                </div>
+                <h3>Inventory</h3>
+                <p>Track ingredients and stock levels</p>
+            </a>
+            {% endif %}
+            
+            <!-- Manager and Admin can view analytics -->
+            {% if session.user_role in ['admin', 'manager'] %}
+            <a href="{{ url_for('admin_analytics') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/icons8-analytics-80.png') }}" alt="Analytics">
+                </div>
+                <h3>Analytics</h3>
+                <p>View sales and performance metrics</p>
+            </a>
+            
+            <a href="{{ url_for('admin_newsletter') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/icons8-newsletter-96.png') }}" alt="Newsletter">
+                </div>
+                <h3>Newsletter</h3>
+                <p>View newsletter subscribers</p>
+            </a>
+            {% endif %}
+            
+            <!-- Admin only -->
+            {% if session.user_role == 'admin' %}
+            <a href="{{ url_for('admin_users') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/cnd_admin_users_icon.png') }}" alt="Users">
+                </div>
+                <h3>Admin Users</h3>
+                <p>Manage staff and admin accounts</p>
+            </a>
+            <a href="{{ url_for('admin_blacklist') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/cnd_blacklist_icon.png') }}" alt="Blacklist">
+                </div>
+                <h3>Blacklist</h3>
+                <p>View and manage blacklisted customers</p>
+            </a>
+            {% endif %}
+            
+            <!-- All roles can view public menu -->
+            <a href="{{ url_for('menu') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/icon_view.png') }}" alt="View Public Menu">
+                </div>
+                <h3>View Public Menu</h3>
+                <p>See how the menu appears to customers</p>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

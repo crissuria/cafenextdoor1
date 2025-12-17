@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}My Account - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">My Account</h1>
+        <p class="page-subtitle">Welcome, {{ customer.first_name }}!</p>
+    </div>
+</div>
+
+<div class="profile-section">
+    <div class="container">
+        <!-- Quick Stats Bar -->
+        <div class="profile-stats-bar">
+            <div class="stat-item">
+                <div class="stat-value">{{ loyalty_points.get('points', 0) if loyalty_points else 0 }}</div>
+                <div class="stat-label">Loyalty Points</div>
+                <a href="{{ url_for('loyalty_program') }}" class="stat-link">View Details →</a>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ orders|length }}</div>
+                <div class="stat-label">Total Orders</div>
+            </div>
+            {% if not customer.phone_verified %}
+            <div class="stat-item alert-item">
+                <div class="stat-icon">⚠</div>
+                <div class="stat-label">Phone Not Verified</div>
+                <a href="{{ url_for('verify_phone') }}" class="stat-link">Verify Now →</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="profile-main-grid">
+            <!-- Left Sidebar - Account Info -->
+            <div class="profile-sidebar">
+                <div class="sidebar-card">
+                    <h3>Account Information</h3>
+                    <div class="account-details-compact">
+                        <div class="detail-row">
+                            <span class="detail-label">Name</span>
+                            <span class="detail-value">{{ customer.first_name }} {{ customer.last_name }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Email</span>
+                            <span class="detail-value">{{ customer.email }}</span>
+                        </div>
+                        {% if customer.phone %}
+                        <div class="detail-row">
+                            <span class="detail-label">Phone</span>
+                            <span class="detail-value">
+                                {{ customer.phone }}
+                                {% if customer.phone_verified %}
+                                    <span class="status-badge status-active">✓</span>
+                                {% else %}
+                                    <span class="status-badge status-inactive">⚠</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endif %}
+                        <div class="detail-row">
+                            <span class="detail-label">Member Since</span>
+                            <span class="detail-value">{{ customer.created_at[:10] }}</span>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('edit_profile') }}" class="btn btn-secondary btn-full" style="margin-top: 1rem;">Edit Profile</a>
+                </div>
+            </div>
+            
+            <!-- Main Content - Order History -->
+            <div class="profile-main-content">
+                <div class="content-header">
+                    <h2>Order History</h2>
+                </div>
+                
+                {% if orders %}
+                <div class="orders-list">
+                    {% for order in orders %}
+                    <div class="order-card">
+                        <div class="order-header">
+                            <div class="order-id-section">
+                                <span class="order-id">Order #{{ order.id }}</span>
+                                <span class="order-date">{{ order.created_at[:10] }}</span>
+                            </div>
+                            <span class="order-status status-{{ order.status }}">{{ order.status|title }}</span>
+                        </div>
+                        <div class="order-details-grid">
+                            <div class="order-detail-item">
+                                <span class="detail-label">Total</span>
+                                <span class="detail-value">P{{ "%.2f"|format(order.total_amount) }}</span>
+                            </div>
+                            {% if order.payment_method %}
+                            <div class="order-detail-item">
+                                <span class="detail-label">Payment</span>
+                                <span class="detail-value">{{ order.payment_method }}</span>
+                            </div>
+                            {% endif %}
+                            <div class="order-detail-item">
+                                <span class="detail-label">Pickup</span>
+                                <span class="detail-value">{{ order.pickup_time }}</span>
+                            </div>
+                        </div>
+                        <div class="order-actions">
+                            <a href="{{ url_for('order_confirmation', order_id=order.id) }}" class="btn btn-secondary btn-sm">View Details</a>
+                            {% if order.status == 'completed' %}
+                            <a href="{{ url_for('review_order', order_id=order.id) }}" class="btn btn-primary btn-sm">Review</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <p>You haven't placed any orders yet.</p>
+                    <a href="{{ url_for('menu') }}" class="btn btn-primary">Browse Menu</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

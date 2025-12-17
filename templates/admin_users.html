@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Users - Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Admin Users</h1>
+        <p class="page-subtitle">Manage staff and admin accounts</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+            <a href="{{ url_for('admin_add_user') }}" class="btn btn-primary">+ Add User</a>
+        </div>
+
+        <div class="admin-menu-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user['id'] }}</td>
+                        <td>{{ user['full_name'] or '-' }}</td>
+                        <td><strong>{{ user['username'] }}</strong></td>
+                        <td>
+                            <span class="role-badge role-{{ user['role'] or 'admin' }}">
+                                {{ (user['role'] or 'admin')|capitalize }}
+                            </span>
+                        </td>
+                        <td>{{ user['created_at'] }}</td>
+                        <td class="action-buttons">
+                            <a href="{{ url_for('admin_edit_user', user_id=user['id']) }}" class="btn btn-small btn-edit">Edit</a>
+                            {% if user['id'] != session.user_id %}
+                            <form method="POST" action="{{ url_for('admin_delete_user', user_id=user['id']) }}" style="display:inline;" onsubmit="return confirm('Delete this user?')">
+                                <button type="submit" class="btn btn-small btn-delete">Delete</button>
+                            </form>
+                            {% else %}
+                            <span class="current-user-badge">You</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

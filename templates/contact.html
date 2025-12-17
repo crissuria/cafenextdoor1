@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Us - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Contact Us</h1>
+        <p class="page-subtitle">Have a question or just want to say hello? We're here to help.</p>
+    </div>
+</div>
+
+<div class="contact-section">
+    <div class="container">
+        <div class="contact-grid">
+            <div class="contact-info">
+                <h2>Get in Touch</h2>
+                <div class="contact-details">
+                    <div class="contact-detail-item">
+                        <div class="contact-icon-wrapper">
+                            <img src="{{ url_for('static', filename='images/icon_address.png') }}" alt="Address" class="contact-icon">
+                            <strong>Address</strong>
+                        </div>
+                        <p>02, City Road, Centro West<br>Santiago, Philippines</p>
+                    </div>
+                    <div class="contact-detail-item">
+                        <div class="contact-icon-wrapper">
+                            <img src="{{ url_for('static', filename='images/icon_phone.png') }}" alt="Phone" class="contact-icon">
+                            <strong>Phone</strong>
+                        </div>
+                        <p>0967 074 9494</p>
+                    </div>
+                    <div class="contact-detail-item">
+                        <div class="contact-icon-wrapper">
+                            <img src="{{ url_for('static', filename='images/icon_email.png') }}" alt="Email" class="contact-icon">
+                            <strong>Email</strong>
+                        </div>
+                        <p>cafenextdoor2023@gmail.com</p>
+                    </div>
+                    <div class="contact-detail-item">
+                        <div class="contact-icon-wrapper">
+                            <img src="{{ url_for('static', filename='images/icon_clock.png') }}" alt="Hours" class="contact-icon">
+                            <strong>Hours</strong>
+                        </div>
+                        <p>Weekdays: 10:00 AM - 10:00 PM<br>Weekends: 9:00 AM - 12:00 AM</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="contact-form-container">
+                <h2>Send us a Message</h2>
+                <form method="POST" action="{{ url_for('contact') }}" class="contact-form">
+                    <!-- Honeypot field - hidden from users but visible to bots -->
+                    <div style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;" aria-hidden="true">
+                        <label for="website">Website (leave blank)</label>
+                        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="name">Name *</label>
+                        <input type="text" id="name" name="name" required placeholder="Your name">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <input type="email" id="email" name="email" required placeholder="your.email@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="message">Message *</label>
+                        <textarea id="message" name="message" rows="5" required placeholder="Your message here..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Send Message</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Newsletter Subscribers - Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Newsletter Subscribers</h1>
+        <p class="page-subtitle">Manage your email list</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+
+        <div class="admin-menu-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Subscribed Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in subscribers %}
+                        <tr>
+                            <td>{{ sub['id'] }}</td>
+                            <td>{{ sub['name'] or '-' }}</td>
+                            <td><a href="mailto:{{ sub['email'] }}">{{ sub['email'] }}</a></td>
+                            <td>
+                                {% if sub['is_active'] %}
+                                    <span class="status-badge status-active">Active</span>
+                                {% else %}
+                                    <span class="status-badge status-inactive">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ sub['created_at'] }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 2rem;">No subscribers yet.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 1.5rem; padding: 1rem; background: #f9f9f9; border-radius: 8px;">
+            <strong>Total Subscribers:</strong> {{ subscribers|length }}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

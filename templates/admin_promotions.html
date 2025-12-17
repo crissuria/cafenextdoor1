@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Promotions - Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Promotions & Discounts</h1>
+        <p class="page-subtitle">Manage promotional codes and discounts</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+            <a href="{{ url_for('admin_add_promotion') }}" class="btn btn-primary">+ Add Promotion</a>
+        </div>
+
+        <div class="promotions-grid">
+            {% for promo in promotions %}
+            <div class="promo-card {% if not promo['is_active'] %}inactive{% endif %}">
+                <div class="promo-header">
+                    <span class="promo-code">{{ promo['code'] }}</span>
+                    <span class="promo-status {% if promo['is_active'] %}active{% else %}inactive{% endif %}">
+                        {{ 'Active' if promo['is_active'] else 'Inactive' }}
+                    </span>
+                </div>
+                <div class="promo-body">
+                    <p class="promo-description">{{ promo['description'] or 'No description' }}</p>
+                    <div class="promo-details">
+                        <div class="promo-detail">
+                            <span class="label">Discount:</span>
+                            <span class="value">
+                                {% if promo['discount_type'] == 'percentage' %}
+                                    {{ promo['discount_value']|int }}% off
+                                {% else %}
+                                    P{{ "%.2f"|format(promo['discount_value']) }} off
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% if promo['min_order_amount'] > 0 %}
+                        <div class="promo-detail">
+                            <span class="label">Min Order:</span>
+                            <span class="value">P{{ "%.2f"|format(promo['min_order_amount']) }}</span>
+                        </div>
+                        {% endif %}
+                        {% if promo['max_uses'] %}
+                        <div class="promo-detail">
+                            <span class="label">Usage:</span>
+                            <span class="value">{{ promo['used_count'] }}/{{ promo['max_uses'] }}</span>
+                        </div>
+                        {% endif %}
+                        {% if promo['start_date'] or promo['end_date'] %}
+                        <div class="promo-detail">
+                            <span class="label">Valid:</span>
+                            <span class="value">
+                                {{ promo['start_date'] or 'Any' }} - {{ promo['end_date'] or 'No end' }}
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="promo-actions">
+                    <form method="POST" action="{{ url_for('admin_toggle_promotion', promo_id=promo['id']) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-small {% if promo['is_active'] %}btn-archive{% else %}btn-reply{% endif %}">
+                            {{ 'Deactivate' if promo['is_active'] else 'Activate' }}
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('admin_delete_promotion', promo_id=promo['id']) }}" style="display:inline;" onsubmit="return confirm('Delete this promotion?')">
+                        <button type="submit" class="btn btn-small btn-delete">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state" style="grid-column: 1/-1;">
+                <p>No promotions created yet.</p>
+                <a href="{{ url_for('admin_add_promotion') }}" class="btn btn-primary">Create First Promotion</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

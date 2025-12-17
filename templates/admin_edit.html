@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Menu Item - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Edit Menu Item</h1>
+        <p class="page-subtitle">Update menu item details</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-form-container">
+            <form method="POST" action="{{ url_for('admin_edit', item_id=item['id']) }}" class="admin-form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="name">Item Name *</label>
+                    <input type="text" id="name" name="name" required placeholder="e.g., Espresso" value="{{ item['name'] }}">
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" rows="3" placeholder="Brief description of the item">{{ item['description'] or '' }}</textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="price">Price (P) *</label>
+                        <input type="number" id="price" name="price" step="0.01" min="0" required placeholder="0.00" value="{{ item['price'] }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Category *</label>
+                        <select id="category" name="category" required>
+                            <option value="">Select a category</option>
+                            <option value="Hot Drinks" {% if item['category'] == 'Hot Drinks' %}selected{% endif %}>Hot Drinks</option>
+                            <option value="Cold Drinks" {% if item['category'] == 'Cold Drinks' %}selected{% endif %}>Cold Drinks</option>
+                            <option value="Pastries" {% if item['category'] == 'Pastries' %}selected{% endif %}>Pastries</option>
+                            <option value="Desserts" {% if item['category'] == 'Desserts' %}selected{% endif %}>Desserts</option>
+                            <option value="Sandwiches" {% if item['category'] == 'Sandwiches' %}selected{% endif %}>Sandwiches</option>
+                            <option value="Salads" {% if item['category'] == 'Salads' %}selected{% endif %}>Salads</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="image_file">Upload New Image (Optional)</label>
+                    <input type="file" id="image_file" name="image_file" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
+                    <small>Upload a new image file (PNG, JPG, GIF, WEBP - max 16MB). This will replace the current image.</small>
+                </div>
+                <div class="form-group">
+                    <label for="image_url">Or Enter Image URL (Optional)</label>
+                    <input type="url" id="image_url" name="image_url" placeholder="https://example.com/image.jpg" value="{{ item['image_url'] or '' }}">
+                    <small>Alternatively, enter a URL to an image for this menu item</small>
+                </div>
+                {% if item['image_url'] %}
+                <div class="form-group">
+                    <label>Current Image</label>
+                    <div class="current-image-preview">
+                        <img src="{{ item['image_url'] }}" alt="{{ item['name'] }}" style="max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 0.5rem;">
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Ingredients Section -->
+                <div class="form-group ingredients-section">
+                    <label>
+                        Ingredients 
+                        <span class="optional-badge">Optional</span>
+                        <span class="recommended-badge">Recommended</span>
+                    </label>
+                    <small>Select ingredients required for this menu item and specify the quantity needed per serving. This helps with inventory tracking and automatic stock management.</small>
+                    <div class="ingredients-grid" id="ingredients-list">
+                        {% if ingredients %}
+                        {% for ingredient in ingredients %}
+                        {% set is_linked = ingredient.id in linked_ingredients %}
+                        {% set quantity = linked_ingredients.get(ingredient.id, 0) %}
+                        <div class="ingredient-item">
+                            <div class="ingredient-label-wrapper">
+                                <label class="ingredient-checkbox-label">
+                                    <input type="checkbox" 
+                                           name="ingredient_ids" 
+                                           value="{{ ingredient.id }}" 
+                                           class="ingredient-checkbox"
+                                           data-ingredient-id="{{ ingredient.id }}"
+                                           {% if is_linked %}checked{% endif %}
+                                           onchange="toggleQuantityInput(this)">
+                                </label>
+                                <span class="ingredient-name">{{ ingredient.name }}</span>
+                                <span class="ingredient-unit">({{ ingredient.unit }})</span>
+                            </div>
+                            <div class="quantity-input-wrapper" {% if not is_linked %}style="display: none;"{% endif %}>
+                                <label class="quantity-label">Quantity per serving:</label>
+                                <input type="number" 
+                                       name="ingredient_{{ ingredient.id }}_quantity" 
+                                       step="0.01" 
+                                       min="0.01" 
+                                       placeholder="0.00" 
+                                       value="{{ quantity if is_linked else '' }}"
+                                       class="ingredient-quantity"
+                                       {% if not is_linked %}disabled{% endif %}>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <p class="no-ingredients">No ingredients available. <a href="{{ url_for('admin_add_ingredient') }}">Add ingredients first</a>.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Update Menu Item</button>
+                    <a href="{{ url_for('admin_menu') }}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

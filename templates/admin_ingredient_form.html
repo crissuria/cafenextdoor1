@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}{% if ingredient %}Edit{% else %}Add{% endif %} Ingredient - Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">{% if ingredient %}Edit{% else %}Add{% endif %} Ingredient</h1>
+        <p class="page-subtitle">{% if ingredient %}Update ingredient information{% else %}Add a new ingredient to inventory{% endif %}</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_inventory') }}" class="btn btn-secondary">← Back to Inventory</a>
+        </div>
+
+        <div class="admin-form-container">
+            <form method="POST" class="admin-form">
+                <div class="form-group">
+                    <label for="name">Ingredient Name *</label>
+                    <input type="text" id="name" name="name" required value="{{ ingredient.name if ingredient else '' }}">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="unit">Unit *</label>
+                        <select id="unit" name="unit" required>
+                            <option value="">Select unit</option>
+                            <option value="kg" {% if ingredient and ingredient.unit == 'kg' %}selected{% endif %}>kg</option>
+                            <option value="liter" {% if ingredient and ingredient.unit == 'liter' %}selected{% endif %}>liter</option>
+                            <option value="gram" {% if ingredient and ingredient.unit == 'gram' %}selected{% endif %}>gram</option>
+                            <option value="piece" {% if ingredient and ingredient.unit == 'piece' %}selected{% endif %}>piece</option>
+                            <option value="dozen" {% if ingredient and ingredient.unit == 'dozen' %}selected{% endif %}>dozen</option>
+                            <option value="can" {% if ingredient and ingredient.unit == 'can' %}selected{% endif %}>can</option>
+                            <option value="bottle" {% if ingredient and ingredient.unit == 'bottle' %}selected{% endif %}>bottle</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                        <input type="text" id="category" name="category" value="{{ ingredient.category if ingredient else '' }}" placeholder="e.g., Beverages, Baking">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="current_stock">Current Stock</label>
+                        <input type="number" id="current_stock" name="current_stock" step="0.01" value="{{ ingredient.current_stock if ingredient else 0 }}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="min_stock">Minimum Stock (Alert Level)</label>
+                        <input type="number" id="min_stock" name="min_stock" step="0.01" value="{{ ingredient.min_stock if ingredient else 0 }}">
+                        <small>Alert when stock falls below this level</small>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cost_per_unit">Cost per Unit (P)</label>
+                        <input type="number" id="cost_per_unit" name="cost_per_unit" step="0.01" value="{{ ingredient.cost_per_unit if ingredient else 0 }}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="supplier">Supplier</label>
+                        <input type="text" id="supplier" name="supplier" value="{{ ingredient.supplier if ingredient else '' }}" placeholder="Supplier name">
+                    </div>
+                </div>
+                
+                {% if ingredient %}
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_active" {% if ingredient.is_active %}checked{% endif %}>
+                        Active
+                    </label>
+                </div>
+                {% endif %}
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">{% if ingredient %}Update{% else %}Add{% endif %} Ingredient</button>
+                    <a href="{{ url_for('admin_inventory') }}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

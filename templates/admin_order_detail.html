@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Order #{{ order.id }} - Admin - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header admin-header">
+    <div class="container">
+        <h1 class="page-title">Order #{{ order.id }}</h1>
+        <p class="page-subtitle">Order details and management</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <a href="{{ url_for('admin_orders') }}" class="btn btn-secondary back-btn">← Back to Orders</a>
+        
+        <div class="order-detail-grid">
+            <div class="order-detail-main">
+                <div class="detail-card">
+                    <h2>Order Items</h2>
+                    <div class="order-items-table">
+                        {% for item in items %}
+                        <div class="order-item-row">
+                            <div class="item-image">
+                                {% if item.image_url %}
+                                <img src="{{ item.image_url }}" alt="{{ item.name }}">
+                                {% else %}
+                                <div class="placeholder-image">☕</div>
+                                {% endif %}
+                            </div>
+                            <div class="item-details">
+                                <span class="item-name">{{ item.name }}</span>
+                                <span class="item-qty">× {{ item.quantity }}</span>
+                            </div>
+                            <span class="item-price">P{{ "%.2f"|format(item.price * item.quantity) }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if order.promo_code %}
+                    <div class="order-discount-row">
+                        <span>Discount (<span class="promo-badge">{{ order.promo_code }}</span>)</span>
+                        <span>-P{{ "%.2f"|format(order.discount_amount) }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="order-total-row">
+                        <span>Total</span>
+                        <span>P{{ "%.2f"|format(order.total_amount) }}</span>
+                    </div>
+                </div>
+                
+                {% if order.notes %}
+                <div class="detail-card">
+                    <h2>Special Instructions</h2>
+                    <p>{{ order.notes }}</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="order-detail-sidebar">
+                <div class="detail-card">
+                    <h2>Customer Info</h2>
+                    <p><strong>Name:</strong> {{ order.first_name }} {{ order.last_name }}</p>
+                    <p><strong>Email:</strong> <a href="mailto:{{ order.email }}">{{ order.email }}</a></p>
+                    {% if order.phone %}
+                    <p><strong>Phone:</strong> <a href="tel:{{ order.phone }}">{{ order.phone }}</a></p>
+                    {% endif %}
+                </div>
+                
+                <div class="detail-card">
+                    <h2>Order Info</h2>
+                    <p><strong>Status:</strong> <span class="order-status status-{{ order.status }}">{{ order.status|title }}</span></p>
+                    <p><strong>Pickup:</strong> {{ order.pickup_time }}</p>
+                    {% if order.payment_method %}
+                    <p><strong>Payment Method:</strong> {{ order.payment_method }}</p>
+                    {% endif %}
+                    {% if order.payment_method and order.payment_method != 'Cash' %}
+                    <p><strong>Payment Verified:</strong> 
+                        {% if order.payment_verified %}
+                            <span class="status-badge status-active">✓ Verified</span>
+                        {% else %}
+                            <span class="status-badge status-inactive">⚠ Pending</span>
+                        {% endif %}
+                    </p>
+                    {% if order.payment_proof %}
+                    <p><strong>Payment Proof:</strong> <span style="word-break: break-all;">{{ order.payment_proof }}</span></p>
+                    {% endif %}
+                    {% endif %}
+                    <p><strong>Confirmation Called:</strong> 
+                        {% if order.confirmation_called %}
+                            <span class="status-badge status-active">✓ Yes</span>
+                        {% else %}
+                            <span class="status-badge status-inactive">No</span>
+                        {% endif %}
+                    </p>
+                    <p><strong>Ordered:</strong> {{ order.created_at[:16] }}</p>
+                    <p><strong>Updated:</strong> {{ order.updated_at[:16] }}</p>
+                </div>
+                
+                <div class="detail-card">
+                    <h2>Order Actions</h2>
+                    <div class="order-action-buttons">
+                        {% if order.payment_method and order.payment_method != 'Cash' and not order.payment_verified %}
+                        <form method="POST" action="{{ url_for('admin_verify_payment', order_id=order.id) }}" style="margin-bottom: 0.5rem;">
+                            <button type="submit" class="btn btn-primary btn-full">✓ Verify Payment</button>
+                        </form>
+                        {% endif %}
+                        {% if not order.confirmation_called %}
+                        <form method="POST" action="{{ url_for('admin_confirm_call', order_id=order.id) }}" style="margin-bottom: 0.5rem;">
+                            <button type="submit" class="btn btn-secondary btn-full">📞 Mark Call Made</button>
+                        </form>
+                        {% endif %}
+                        {% if order.status in ['pending', 'confirmed', 'ready'] %}
+                        <form method="POST" action="{{ url_for('admin_mark_no_show', order_id=order.id) }}" 
+                              onsubmit="return confirm('Mark this order as no-show? This will update the customer\\'s no-show count.')" style="margin-bottom: 0.5rem;">
+                            <button type="submit" class="btn btn-delete btn-full">⚠ Mark No-Show</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="detail-card">
+                    <h2>Update Status</h2>
+                    <form method="POST" action="{{ url_for('admin_update_order_status', order_id=order.id) }}" class="status-form">
+                        <select name="status" class="status-select">
+                            <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="confirmed" {% if order.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                            <option value="preparing" {% if order.status == 'preparing' %}selected{% endif %}>Preparing</option>
+                            <option value="ready" {% if order.status == 'ready' %}selected{% endif %}>Ready for Pickup</option>
+                            <option value="completed" {% if order.status == 'completed' %}selected{% endif %}>Completed</option>
+                            <option value="cancelled" {% if order.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary btn-full">Update Status</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

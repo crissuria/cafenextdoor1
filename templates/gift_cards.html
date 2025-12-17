@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Gift Cards - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">My Gift Cards</h1>
+        <p class="page-subtitle">Manage your gift cards and vouchers</p>
+    </div>
+</div>
+
+<div class="gift-cards-section">
+    <div class="container">
+        <div class="gift-cards-actions">
+            <a href="{{ url_for('purchase_gift_card') }}" class="btn btn-primary">Purchase Gift Card</a>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('redeem-form').style.display='block'">Redeem Code</button>
+        </div>
+
+        <!-- Redeem Form -->
+        <div id="redeem-form" class="redeem-form" style="display: none;">
+            <form method="POST" action="{{ url_for('redeem_gift_card') }}" class="gift-card-form">
+                <h3>Redeem Gift Card</h3>
+                <div class="form-group">
+                    <label for="code">Gift Card Code</label>
+                    <input type="text" id="code" name="code" required placeholder="Enter gift card code" style="text-transform: uppercase;">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Redeem</button>
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('redeem-form').style.display='none'">Cancel</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Gift Cards List -->
+        {% if gift_cards %}
+        <div class="gift-cards-grid">
+            {% for gc in gift_cards %}
+            <div class="gift-card-item">
+                <div class="gift-card-header">
+                    <h3>Gift Card</h3>
+                    <span class="gift-card-code">{{ gc.code }}</span>
+                </div>
+                <div class="gift-card-balance">
+                    <span class="balance-label">Balance</span>
+                    <span class="balance-amount">P{{ "%.2f"|format(gc.balance) }}</span>
+                </div>
+                <div class="gift-card-info">
+                    <p><strong>Original Amount:</strong> P{{ "%.2f"|format(gc.amount) }}</p>
+                    {% if gc.expires_at %}
+                    <p><strong>Expires:</strong> {{ gc.expires_at }}</p>
+                    {% endif %}
+                    <p><strong>Purchased:</strong> {{ gc.created_at[:10] }}</p>
+                </div>
+                {% if gc.transactions %}
+                <div class="gift-card-transactions">
+                    <h4>Recent Transactions</h4>
+                    <ul>
+                        {% for trans in gc.transactions[:3] %}
+                        <li>
+                            <span class="trans-type">{{ trans.transaction_type|title }}</span>
+                            <span class="trans-amount">P{{ "%.2f"|format(trans.amount) }}</span>
+                            <span class="trans-date">{{ trans.created_at[:10] }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>You don't have any gift cards yet.</p>
+            <a href="{{ url_for('purchase_gift_card') }}" class="btn btn-primary">Purchase Your First Gift Card</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

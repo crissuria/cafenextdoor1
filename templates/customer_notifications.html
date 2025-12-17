@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Notifications</h1>
+        <p class="page-subtitle">Stay updated on your orders</p>
+    </div>
+</div>
+
+<div class="notifications-section">
+    <div class="container">
+        {% if unread_count > 0 %}
+        <div class="notifications-actions">
+            <form method="POST" action="{{ url_for('mark_all_notifications_read') }}" style="display: inline;">
+                <button type="submit" class="btn btn-secondary btn-sm">Mark All as Read</button>
+            </form>
+            <span class="unread-badge">{{ unread_count }} unread</span>
+        </div>
+        {% endif %}
+        
+        {% if notifications %}
+        <div class="notifications-list">
+            {% for notification in notifications %}
+            <div class="notification-card {% if not notification.is_read %}unread{% endif %}" 
+                 data-notification-id="{{ notification.id }}">
+                <div class="notification-header">
+                    <h3 class="notification-title">{{ notification.title }}</h3>
+                    <span class="notification-time">{{ notification.created_at[:16] }}</span>
+                </div>
+                <p class="notification-message">{{ notification.message }}</p>
+                {% if notification.order_id %}
+                <div class="notification-actions">
+                    <a href="{{ url_for('order_confirmation', order_id=notification.order_id) }}" class="btn btn-secondary btn-sm">View Order</a>
+                </div>
+                {% endif %}
+                {% if not notification.is_read %}
+                <form method="POST" action="{{ url_for('mark_notification_read', notification_id=notification.id) }}" class="mark-read-form">
+                    <button type="submit" class="btn-link">Mark as read</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No notifications yet.</p>
+            <p style="color: #666; margin-top: 0.5rem;">You'll receive notifications about your orders here.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Auto-mark as read when clicked
+document.querySelectorAll('.notification-card').forEach(card => {
+    card.addEventListener('click', function(e) {
+        if (!e.target.closest('a') && !e.target.closest('button') && !e.target.closest('form')) {
+            const notificationId = this.getAttribute('data-notification-id');
+            const form = this.querySelector('.mark-read-form');
+            if (form && !this.classList.contains('read')) {
+                fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams(new FormData(form))
+                }).then(() => {
+                    this.classList.remove('unread');
+                    this.classList.add('read');
+                    form.remove();
+                });
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
+

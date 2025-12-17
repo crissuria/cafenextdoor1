@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ingredient.name }} - Inventory Detail{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">{{ ingredient.name }}</h1>
+        <p class="page-subtitle">Ingredient Details & Transactions</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_inventory') }}" class="btn btn-secondary">← Back to Inventory</a>
+            {% if session.user_role in ['admin', 'manager'] %}
+            <a href="{{ url_for('admin_edit_ingredient', ingredient_id=ingredient.id) }}" class="btn btn-primary">Edit</a>
+            <button type="button" class="btn btn-info" onclick="showStockModal({{ ingredient.id }}, '{{ ingredient.name }}', '{{ ingredient.unit }}')">Update Stock</button>
+            {% endif %}
+        </div>
+
+        <div class="detail-grid">
+            <!-- Ingredient Info -->
+            <div class="detail-card">
+                <h2>Ingredient Information</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Name</span>
+                        <span class="info-value">{{ ingredient.name }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Category</span>
+                        <span class="info-value">{{ ingredient.category or '-' }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Unit</span>
+                        <span class="info-value">{{ ingredient.unit }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Current Stock</span>
+                        <span class="info-value {% if ingredient.current_stock <= 0 %}out-of-stock{% elif ingredient.current_stock <= ingredient.min_stock %}low-stock{% endif %}">
+                            {{ "%.2f"|format(ingredient.current_stock) }} {{ ingredient.unit }}
+                        </span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Minimum Stock</span>
+                        <span class="info-value">{{ "%.2f"|format(ingredient.min_stock) }} {{ ingredient.unit }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Cost per Unit</span>
+                        <span class="info-value">P{{ "%.2f"|format(ingredient.cost_per_unit) }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Supplier</span>
+                        <span class="info-value">{{ ingredient.supplier or '-' }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status</span>
+                        <span class="info-value">
+                            {% if ingredient.is_active %}
+                                <span class="status-badge status-active">Active</span>
+                            {% else %}
+                                <span class="status-badge status-inactive">Inactive</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Menu Items Using This Ingredient -->
+            {% if menu_items %}
+            <div class="detail-card">
+                <h2>Used in Menu Items</h2>
+                <div class="menu-items-list">
+                    {% for item in menu_items %}
+                    <div class="menu-item-link">
+                        <a href="{{ url_for('admin_edit', item_id=item.id) }}">
+                            {{ item.name }} - {{ "%.2f"|format(item.quantity_required) }} {{ ingredient.unit }} per serving
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Transactions -->
+        <div class="detail-card full-width">
+            <h2>Transaction History</h2>
+            {% if transactions %}
+            <div class="transactions-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Quantity</th>
+                            <th>Order ID</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for trans in transactions %}
+                        <tr>
+                            <td>{{ trans.created_at[:16] }}</td>
+                            <td>
+                                <span class="trans-type-{{ trans.transaction_type }}">
+                                    {{ trans.transaction_type|title }}
+                                </span>
+                            </td>
+                            <td>{{ "%.2f"|format(trans.quantity) }} {{ ingredient.unit }}</td>
+                            <td>
+                                {% if trans.order_id %}
+                                <a href="{{ url_for('admin_order_detail', order_id=trans.order_id) }}">#{{ trans.order_id }}</a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ trans.notes or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="no-data">No transactions yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Stock Update Modal -->
+<div id="stockModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeStockModal()">&times;</span>
+        <h2>Update Stock</h2>
+        <form method="POST" action="{{ url_for('admin_update_stock', ingredient_id=ingredient.id) }}" id="stock-form">
+            <div class="form-group">
+                <label>Ingredient: {{ ingredient.name }}</label>
+            </div>
+            <div class="form-group">
+                <label for="adjustment">Stock Adjustment *</label>
+                <input type="number" id="adjustment" name="adjustment" step="0.01" required>
+                <small>Enter positive number to add stock, negative to subtract. Unit: {{ ingredient.unit }}</small>
+            </div>
+            <div class="form-group">
+                <label for="notes">Notes (optional)</label>
+                <textarea id="notes" name="notes" rows="2" placeholder="e.g., Restocked from supplier"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Update Stock</button>
+                <button type="button" class="btn btn-secondary" onclick="closeStockModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showStockModal(ingredientId, ingredientName, unit) {
+    document.getElementById('stockModal').style.display = 'block';
+}
+
+function closeStockModal() {
+    document.getElementById('stockModal').style.display = 'none';
+    document.getElementById('stock-form').reset();
+}
+
+window.onclick = function(event) {
+    const modal = document.getElementById('stockModal');
+    if (event.target == modal) {
+        closeStockModal();
+    }
+}
+</script>
+{% endblock %}
+

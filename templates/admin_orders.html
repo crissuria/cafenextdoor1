@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Orders - Admin - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header admin-header">
+    <div class="container">
+        <h1 class="page-title">Manage Orders</h1>
+        <p class="page-subtitle">View and manage customer orders</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+
+        <!-- Filters and Search -->
+        <div class="orders-filters">
+            <form method="GET" class="filter-form">
+                <div class="filter-section">
+                    <div class="filter-icon-wrapper">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                        </svg>
+                    </div>
+                    <div class="filter-group">
+                        <label for="status-filter">Filter by Status</label>
+                        <select name="status" id="status-filter" onchange="this.form.submit()" class="filter-select">
+                            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Orders</option>
+                            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="confirmed" {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                            <option value="preparing" {% if status_filter == 'preparing' %}selected{% endif %}>Preparing</option>
+                            <option value="ready" {% if status_filter == 'ready' %}selected{% endif %}>Ready</option>
+                            <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                            <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="search-section">
+                    <div class="search-icon-wrapper">
+                        <img src="{{ url_for('static', filename='images/cnd-search_icon.png') }}" alt="Search" class="search-icon-img">
+                    </div>
+                    <div class="filter-group search-group">
+                        <label for="search-input">Search Orders</label>
+                        <input type="text" name="search" id="search-input" value="{{ search_query or '' }}" placeholder="Search by order ID, customer name..." class="search-input">
+                    </div>
+                    <button type="submit" class="btn btn-primary search-submit-btn">
+                        <span>Search</span>
+                    </button>
+                    {% if status_filter != 'all' or search_query %}
+                    <a href="{{ url_for('admin_orders') }}" class="btn btn-secondary clear-filters-btn">
+                        <span>Clear</span>
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+        
+        {% if orders %}
+        <div class="orders-grid">
+            {% for order in orders %}
+            <div class="admin-order-card">
+                <div class="order-card-header">
+                    <div class="order-header-left">
+                        <span class="order-id">Order #{{ order.id }}</span>
+                        <span class="order-date">{{ order.created_at[:16] }}</span>
+                    </div>
+                    <span class="order-status status-{{ order.status }}">{{ order.status|title }}</span>
+                </div>
+                <div class="order-card-body">
+                    <div class="order-info-section">
+                        <div class="info-row">
+                            <span class="info-label">Customer</span>
+                            <span class="info-value">{{ order.first_name }} {{ order.last_name }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Contact</span>
+                            <span class="info-value">
+                                {% if order.phone %}
+                                    <a href="tel:{{ order.phone }}" class="contact-link">{{ order.phone }}</a>
+                                {% else %}
+                                    <a href="mailto:{{ order.email }}" class="contact-link">{{ order.email }}</a>
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Pickup Time</span>
+                            <span class="info-value">{{ order.pickup_time }}</span>
+                        </div>
+                        {% if order.payment_method %}
+                        <div class="info-row">
+                            <span class="info-label">Payment</span>
+                            <span class="info-value payment-method">{{ order.payment_method }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="order-summary-section">
+                        <div class="summary-row">
+                            <span class="summary-label">Subtotal</span>
+                            <span class="summary-value">P{{ "%.2f"|format(order.total_amount + (order.discount_amount or 0)) }}</span>
+                        </div>
+                        {% if order.promo_code %}
+                        <div class="summary-row promo-row">
+                            <span class="summary-label">
+                                <span class="promo-badge-small">{{ order.promo_code }}</span> Discount
+                            </span>
+                            <span class="summary-value discount">-P{{ "%.2f"|format(order.discount_amount) }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="summary-row total-row">
+                            <span class="summary-label">Total</span>
+                            <span class="summary-value total-amount">P{{ "%.2f"|format(order.total_amount) }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="order-card-actions">
+                    <a href="{{ url_for('admin_order_detail', order_id=order.id) }}" class="btn btn-primary btn-sm">View Details</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No orders found.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

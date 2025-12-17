@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Cart - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Your Cart</h1>
+        <p class="page-subtitle">Review your items before checkout</p>
+    </div>
+</div>
+
+<div class="cart-section">
+    <div class="container">
+        {% if cart_items %}
+        <div class="cart-content">
+            <div class="cart-items">
+                {% for item in cart_items %}
+                <div class="cart-item">
+                    <div class="cart-item-image">
+                        {% if item.image_url %}
+                        <img src="{{ item.image_url }}" alt="{{ item.name }}">
+                        {% else %}
+                        <div class="placeholder-image">☕</div>
+                        {% endif %}
+                    </div>
+                    <div class="cart-item-details">
+                        <h3>{{ item.name }}</h3>
+                        <p class="item-price">P{{ "%.2f"|format(item.price) }} each</p>
+                    </div>
+                    <div class="cart-item-quantity">
+                        <form method="POST" action="{{ url_for('update_cart', item_id=item.id) }}" class="quantity-form">
+                            <button type="button" class="qty-btn" onclick="changeQty(this, -1)">−</button>
+                            <input type="number" name="quantity" value="{{ item.quantity }}" min="1" max="99" class="qty-input">
+                            <button type="button" class="qty-btn" onclick="changeQty(this, 1)">+</button>
+                            <button type="submit" class="btn btn-secondary btn-sm update-btn">Update</button>
+                        </form>
+                    </div>
+                    <div class="cart-item-subtotal">
+                        <p class="subtotal">P{{ "%.2f"|format(item.subtotal) }}</p>
+                        <form method="POST" action="{{ url_for('remove_from_cart', item_id=item.id) }}">
+                            <button type="submit" class="btn-remove">Remove</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <div class="cart-summary">
+                <h2>Order Summary</h2>
+                <div class="summary-row">
+                    <span>Subtotal</span>
+                    <span>P{{ "%.2f"|format(total) }}</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total</span>
+                    <span>P{{ "%.2f"|format(total) }}</span>
+                </div>
+                
+                {% if session.customer_id %}
+                <a href="{{ url_for('checkout') }}" class="btn btn-primary btn-full">Proceed to Checkout</a>
+                {% else %}
+                <a href="{{ url_for('customer_login') }}" class="btn btn-primary btn-full">Log in to Checkout</a>
+                <p class="login-hint">Don't have an account? <a href="{{ url_for('customer_register') }}">Create one</a></p>
+                {% endif %}
+                
+                <form method="POST" action="{{ url_for('clear_cart') }}" class="clear-cart-form">
+                    <button type="submit" class="btn btn-secondary btn-full">Clear Cart</button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-cart">
+            <div class="empty-cart-icon">🛒</div>
+            <h2>Your cart is empty</h2>
+            <p>Looks like you haven't added any items yet.</p>
+            <a href="{{ url_for('menu') }}" class="btn btn-primary">Browse Menu</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function changeQty(btn, delta) {
+    const input = btn.parentElement.querySelector('.qty-input');
+    let val = parseInt(input.value) + delta;
+    if (val >= 1 && val <= 99) input.value = val;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Dashboard - Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Analytics Dashboard</h1>
+        <p class="page-subtitle">Business insights and performance metrics</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+            <div class="export-buttons">
+                <a href="{{ url_for('export_analytics_csv', period=date_filter, start_date=start_date or '', end_date=end_date or '') }}" class="btn btn-primary btn-sm">📥 Export CSV</a>
+                <a href="{{ url_for('export_analytics_pdf', period=date_filter, start_date=start_date or '', end_date=end_date or '') }}" class="btn btn-primary btn-sm">📄 Export PDF</a>
+            </div>
+        </div>
+
+        <!-- Date Filter -->
+        <div class="analytics-filters">
+            <form method="GET" class="filter-form">
+                <div class="filter-group">
+                    <label>Period:</label>
+                    <select name="period" onchange="this.form.submit()">
+                        <option value="all" {% if date_filter == 'all' %}selected{% endif %}>All Time</option>
+                        <option value="today" {% if date_filter == 'today' %}selected{% endif %}>Today</option>
+                        <option value="week" {% if date_filter == 'week' %}selected{% endif %}>Last 7 Days</option>
+                        <option value="month" {% if date_filter == 'month' %}selected{% endif %}>Last 30 Days</option>
+                        <option value="year" {% if date_filter == 'year' %}selected{% endif %}>Last Year</option>
+                        <option value="custom" {% if date_filter == 'custom' %}selected{% endif %}>Custom Range</option>
+                    </select>
+                </div>
+                {% if date_filter == 'custom' %}
+                <div class="filter-group">
+                    <label>Start Date:</label>
+                    <input type="date" name="start_date" value="{{ start_date or '' }}" required>
+                </div>
+                <div class="filter-group">
+                    <label>End Date:</label>
+                    <input type="date" name="end_date" value="{{ end_date or '' }}" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Enhanced Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">💰</div>
+                <div class="stat-content">
+                    <h3>P{{ "%.2f"|format(total_revenue) }}</h3>
+                    <p>Total Revenue</p>
+                    {% if avg_order_value > 0 %}
+                    <small>Avg: P{{ "%.2f"|format(avg_order_value) }}</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📦</div>
+                <div class="stat-content">
+                    <h3>{{ total_orders }}</h3>
+                    <p>Total Orders</p>
+                    <small>{{ completed_orders }} completed</small>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-content">
+                    <h3>{{ total_customers }}</h3>
+                    <p>Total Customers</p>
+                    {% if new_customers > 0 %}
+                    <small>{{ new_customers }} new</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-content">
+                    <h3>{{ "%.1f"|format(avg_order_value) }}</h3>
+                    <p>Avg Order Value</p>
+                    <small>Per order</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Revenue Trend Chart -->
+        <div class="analytics-card full-width">
+            <h2>Revenue Trend</h2>
+            {% if revenue_trend and revenue_trend|length > 0 %}
+            <div class="revenue-trend-chart">
+                {% set revenue_values = revenue_trend|map(attribute='revenue')|list %}
+                {% set max_revenue = revenue_values|max if revenue_values and revenue_values|max > 0 else 1 %}
+                {% for trend in revenue_trend %}
+                {% set trend_revenue = trend['revenue'] or 0 %}
+                <div class="trend-item">
+                    <div class="trend-bar-container">
+                        <div class="trend-bar" style="height: {{ ((trend_revenue / max_revenue * 100)|int) if max_revenue > 0 else 0 }}%"></div>
+                    </div>
+                    <span class="trend-label">{{ trend['period'] }}</span>
+                    <span class="trend-value">P{{ "%.0f"|format(trend_revenue) }}</span>
+                    <span class="trend-count">{{ trend['count'] }} orders</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-data">No revenue data for selected period.</p>
+            {% endif %}
+        </div>
+
+        <!-- Analytics Row -->
+        <div class="analytics-row">
+            <!-- Order Status Breakdown -->
+            <div class="analytics-card">
+                <h2>Order Status</h2>
+                <div class="status-breakdown">
+                    <div class="status-item">
+                        <span class="status-label">Pending</span>
+                        <span class="status-count">{{ order_stats.get('pending', 0) }}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Confirmed</span>
+                        <span class="status-count">{{ order_stats.get('confirmed', 0) }}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Preparing</span>
+                        <span class="status-count">{{ order_stats.get('preparing', 0) }}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Ready</span>
+                        <span class="status-count">{{ order_stats.get('ready', 0) }}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Completed</span>
+                        <span class="status-count">{{ order_stats.get('completed', 0) }}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Cancelled</span>
+                        <span class="status-count">{{ order_stats.get('cancelled', 0) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hourly Sales Pattern -->
+            <div class="analytics-card">
+                <h2>Hourly Sales Pattern</h2>
+                {% if hourly_sales %}
+                <div class="hourly-sales-chart">
+                    {% set max_count = hourly_sales|map(attribute='count')|max if hourly_sales else 1 %}
+                    {% for hour_data in hourly_sales %}
+                    <div class="hour-item">
+                        <div class="hour-bar-container">
+                            <div class="hour-bar" style="height: {{ (hour_data['count'] / max_count * 100)|int }}%"></div>
+                        </div>
+                        <span class="hour-label">{{ hour_data['hour'] }}:00</span>
+                        <span class="hour-count">{{ hour_data['count'] }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="no-data">No hourly data available.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Top Selling Items -->
+        <div class="analytics-card full-width">
+            <h2>Top Selling Items (Top 10)</h2>
+            {% if top_items %}
+            <div class="top-items-list">
+                {% for item in top_items %}
+                <div class="top-item">
+                    <span class="item-rank">{{ loop.index }}</span>
+                    <span class="item-name">{{ item['name'] }}</span>
+                    <span class="item-sold">{{ item['total_sold'] }} sold</span>
+                    <span class="item-revenue">P{{ "%.2f"|format(item['revenue']) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-data">No sales data yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Sales by Category -->
+        <div class="analytics-card full-width">
+            <h2>Sales by Category</h2>
+            {% if category_sales %}
+            <div class="category-sales">
+                {% for cat in category_sales %}
+                <div class="category-item">
+                    <div class="category-info">
+                        <span class="category-name">{{ cat['category'] }}</span>
+                        <span class="category-stats">{{ cat['total_sold'] }} items • P{{ "%.2f"|format(cat['revenue']) }}</span>
+                    </div>
+                    <div class="category-bar">
+                        {% set max_revenue = category_sales[0]['revenue'] if category_sales else 1 %}
+                        <div class="bar-fill" style="width: {{ (cat['revenue'] / max_revenue * 100)|int }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-data">No category sales data yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Top Customers -->
+        <div class="analytics-card full-width">
+            <h2>Top Customers by Revenue</h2>
+            {% if top_customers %}
+            <div class="top-customers-list">
+                {% for customer in top_customers %}
+                <div class="customer-item">
+                    <span class="customer-rank">{{ loop.index }}</span>
+                    <span class="customer-name">{{ customer['first_name'] }} {{ customer['last_name'] }}</span>
+                    <span class="customer-email">{{ customer['email'] }}</span>
+                    <span class="customer-orders">{{ customer['order_count'] }} orders</span>
+                    <span class="customer-revenue">P{{ "%.2f"|format(customer['total_spent']) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-data">No customer data for selected period.</p>
+            {% endif %}
+        </div>
+
+        <!-- Recent Orders Chart -->
+        <div class="analytics-card full-width">
+            <h2>Daily Orders (Last 30 Days)</h2>
+            {% if recent_orders %}
+            <div class="recent-orders-chart">
+                {% for day in recent_orders %}
+                <div class="day-stat">
+                    <div class="day-bar-container">
+                        {% set max_count = recent_orders|map(attribute='count')|max if recent_orders else 1 %}
+                        <div class="day-bar" style="height: {{ (day['count'] / max_count * 100)|int }}%"></div>
+                    </div>
+                    <span class="day-label">{{ day['date'][-5:] }}</span>
+                    <span class="day-count">{{ day['count'] }} orders</span>
+                    <span class="day-revenue">P{{ "%.0f"|format(day['revenue']) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-data">No orders in the selected period.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

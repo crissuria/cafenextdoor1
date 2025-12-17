@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Loyalty Program - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Loyalty Program</h1>
+        <p class="page-subtitle">Earn points with every order!</p>
+    </div>
+</div>
+
+<div class="loyalty-section">
+    <div class="container">
+        <div class="loyalty-summary">
+            <div class="points-card">
+                <div class="points-icon">⭐</div>
+                <div class="points-content">
+                    <h2>{{ points.points }}</h2>
+                    <p>Current Points</p>
+                </div>
+            </div>
+            <div class="points-info">
+                <p><strong>Total Earned:</strong> {{ points.total_earned }} points</p>
+                <p><strong>Total Redeemed:</strong> {{ points.total_redeemed }} points</p>
+                <p class="points-note">Earn 1 point for every peso spent. Points are awarded when your order is completed.</p>
+            </div>
+        </div>
+        
+        <div class="loyalty-history">
+            <h2>Recent Activity</h2>
+            {% if transactions %}
+            <div class="transactions-list">
+                {% for trans in transactions %}
+                <div class="transaction-item {% if trans.transaction_type == 'earned' %}earned{% else %}redeemed{% endif %}">
+                    <div class="transaction-icon">
+                        {% if trans.transaction_type == 'earned' %}➕{% else %}➖{% endif %}
+                    </div>
+                    <div class="transaction-details">
+                        <p class="transaction-type">{{ trans.transaction_type|title }}</p>
+                        <p class="transaction-desc">{{ trans.description or 'Loyalty points transaction' }}</p>
+                        <p class="transaction-date">{{ trans.created_at[:16] }}</p>
+                    </div>
+                    <div class="transaction-points">
+                        {% if trans.transaction_type == 'earned' %}+{% else %}-{% endif %}{{ trans.points }} pts
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-transactions">No transactions yet. Complete an order to start earning points!</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Phone - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Verify Your Phone Number</h1>
+        <p class="page-subtitle">Required to place orders</p>
+    </div>
+</div>
+
+<div class="auth-page">
+    <div class="auth-container">
+        <div class="auth-header">
+            <h1>Phone Verification</h1>
+            <p>We'll send a verification code to <strong>{{ customer.phone or 'your phone number' }}</strong></p>
+        </div>
+        
+        {% if not customer.phone %}
+        <div class="alert alert-warning">
+            <p>Please add a phone number to your account first.</p>
+            <a href="{{ url_for('customer_profile') }}" class="btn btn-primary">Go to Profile</a>
+        </div>
+        {% else %}
+        <form method="POST" class="auth-form">
+            <div class="form-group">
+                <label for="verification_code">Verification Code</label>
+                <input type="text" id="verification_code" name="verification_code" required 
+                       placeholder="Enter 6-digit code" maxlength="6" pattern="[0-9]{6}">
+                <small>Enter the 6-digit code sent to your phone</small>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-full">Verify</button>
+        </form>
+        
+        <div class="auth-footer">
+            <form method="POST" action="{{ url_for('send_verification_code') }}" id="resend-form" style="margin-top: 1rem;">
+                <button type="submit" class="btn btn-secondary btn-full">Send Verification Code</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if verification_code %}
+<script>
+window.addEventListener('load', function() {
+    alert('📱 Verification Code\n\nYour verification code is: {{ verification_code }}\n\n(Simulated - for testing purposes)');
+});
+</script>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Menu - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Our Menu</h1>
+        <p class="page-subtitle">Curated selections crafted with passion and attention to detail</p>
+    </div>
+</div>
+
+<div class="menu-section">
+    <div class="container">
+        <!-- Search and Filter Bar -->
+        <div class="menu-filters">
+            <form method="GET" action="{{ url_for('menu') }}" class="filter-form">
+                <div class="search-box">
+                    <input type="text" name="search" placeholder="Search menu..." value="{{ search_query }}" class="search-input">
+                    <button type="submit" class="search-btn">
+                        <img src="{{ url_for('static', filename='images/cnd-search_icon.png') }}" alt="Search" class="search-icon-img">
+                    </button>
+                </div>
+                <div class="filter-group">
+                    <select name="category" class="filter-select" onchange="this.form.submit()">
+                        <option value="">All Categories</option>
+                        {% for cat in all_categories %}
+                            <option value="{{ cat }}" {% if category_filter == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <select name="price" class="filter-select" onchange="this.form.submit()">
+                        <option value="">Sort by Price</option>
+                        <option value="low" {% if price_sort == 'low' %}selected{% endif %}>Price: Low to High</option>
+                        <option value="high" {% if price_sort == 'high' %}selected{% endif %}>Price: High to Low</option>
+                    </select>
+                </div>
+                {% if search_query or category_filter or price_sort %}
+                    <a href="{{ url_for('menu') }}" class="btn btn-secondary btn-sm clear-filters">Clear Filters</a>
+                {% endif %}
+            </form>
+        </div>
+
+        {% if categories %}
+            {% for category, items in categories.items() %}
+                <div class="menu-category">
+                    <h2 class="category-title">
+                        {% if category == 'Hot Drinks' %}
+                            <img src="{{ url_for('static', filename='images/icon_hot.png') }}" alt="Hot Drinks" class="category-icon">
+                        {% elif category == 'Cold Drinks' %}
+                            <img src="{{ url_for('static', filename='images/icon_colddrink.png') }}" alt="Cold Drinks" class="category-icon">
+                        {% elif category == 'Pastries' %}
+                            <img src="{{ url_for('static', filename='images/icon_pastry.png') }}" alt="Pastries" class="category-icon">
+                        {% elif category == 'Desserts' %}
+                            <img src="{{ url_for('static', filename='images/icon_dessert.png') }}" alt="Desserts" class="category-icon">
+                        {% endif %}
+                        {{ category }}
+                    </h2>
+                    <div class="menu-grid">
+                        {% for item in items %}
+                            <div class="menu-item-card {% if not item['is_available'] %}sold-out{% endif %}">
+                                <div class="menu-item-image">
+                                    {% if item['image_url'] %}
+                                        <img src="{{ item['image_url'] }}" alt="{{ item['name'] }}" onerror="this.parentElement.innerHTML='<div class=\'placeholder-image\'>☕</div>'">
+                                    {% else %}
+                                        <div class="placeholder-image">☕</div>
+                                    {% endif %}
+                                    {% if not item['is_available'] %}
+                                        <div class="sold-out-overlay">Sold Out</div>
+                                    {% endif %}
+                                    <!-- Favorite Button -->
+                                    {% if session.customer_id %}
+                                        {% if item['id'] in favorites %}
+                                            <form method="POST" action="{{ url_for('remove_from_favorites', item_id=item['id']) }}" class="favorite-form">
+                                                <button type="submit" class="favorite-btn active" title="Remove from favorites">♥</button>
+                                            </form>
+                                        {% else %}
+                                            <form method="POST" action="{{ url_for('add_to_favorites', item_id=item['id']) }}" class="favorite-form">
+                                                <button type="submit" class="favorite-btn" title="Add to favorites">♡</button>
+                                            </form>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                                <div class="menu-item-content">
+                                    <h3 class="menu-item-name">{{ item['name'] }}</h3>
+                                    {% if item['description'] %}
+                                        <p class="menu-item-description">{{ item['description'] }}</p>
+                                    {% endif %}
+                                    {% if item['review_count'] > 0 %}
+                                    <div class="item-rating">
+                                        <span class="stars">
+                                            {% for i in range(1, 6) %}
+                                                {% if i <= item['avg_rating']|round|int %}
+                                                    ★
+                                                {% else %}
+                                                    ☆
+                                                {% endif %}
+                                            {% endfor %}
+                                        </span>
+                                        <span class="rating-text">({{ item['review_count'] }} review{{ 's' if item['review_count'] != 1 else '' }})</span>
+                                        <a href="{{ url_for('view_item_reviews', item_id=item['id']) }}" class="view-reviews-link">View reviews</a>
+                                    </div>
+                                    {% endif %}
+                                    <div class="menu-item-footer">
+                                        <p class="menu-item-price">P{{ "%.2f"|format(item['price']) }}</p>
+                                        {% if item['is_available'] %}
+                                            <form method="POST" action="{{ url_for('add_to_cart', item_id=item['id']) }}" class="add-to-cart-form">
+                                                <button type="submit" class="btn btn-primary btn-sm add-to-cart-btn">Add to Cart</button>
+                                            </form>
+                                        {% else %}
+                                            <button class="btn btn-sm add-to-cart-btn" disabled>Sold Out</button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                {% if search_query or category_filter %}
+                    <p>No items found matching your search. <a href="{{ url_for('menu') }}">View all items</a></p>
+                {% else %}
+                    <p>No menu items available at the moment. Check back soon!</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

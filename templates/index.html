@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="hero-section" style="background-image: linear-gradient(135deg, rgba(61, 40, 23, 0.75) 0%, rgba(111, 78, 55, 0.65) 100%), url('{{ url_for('static', filename='images/hero.jpg') }}');">
+    <div class="container">
+        <div class="hero-content">
+            <h1 class="hero-title">Welcome to <span class="hero-brand">Cafe Next Door</span></h1>
+            <p class="hero-subtitle">Where every cup tells a story, and every visit feels like home</p>
+            <div class="hero-buttons">
+                <a href="{{ url_for('menu') }}" class="btn btn-primary">View Menu</a>
+                <a href="{{ url_for('contact') }}" class="btn btn-secondary">Contact Us</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="features-section">
+    <div class="container">
+        <h2 class="section-title">Why Choose Us?</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <img src="{{ url_for('static', filename='images/icon_coffee.png') }}" alt="Premium Coffee">
+                </div>
+                <h3>Premium Coffee</h3>
+                <p>Hand-selected beans from renowned regions, roasted to perfection and brewed with care.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <img src="{{ url_for('static', filename='images/icon_pastry.png') }}" alt="Fresh Pastries">
+                </div>
+                <h3>Fresh Pastries</h3>
+                <p>Artisanal baked goods made from scratch each morning, bringing warmth and comfort to your day.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <img src="{{ url_for('static', filename='images/icon_cozy.png') }}" alt="Cozy Atmosphere">
+                </div>
+                <h3>Cozy Atmosphere</h3>
+                <p>A thoughtfully designed space where community meets comfort, ideal for connection and conversation.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="info-section">
+    <div class="container">
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-icon-wrapper">
+                    <img src="{{ url_for('static', filename='images/icon_address.png') }}" alt="Location" class="info-icon">
+                    <h3>Location</h3>
+                </div>
+                <p>02, City Road, Centro West<br>Santiago, Philippines</p>
+            </div>
+            <div class="info-item">
+                <div class="info-icon-wrapper">
+                    <img src="{{ url_for('static', filename='images/icon_clock.png') }}" alt="Hours" class="info-icon">
+                    <h3>Hours</h3>
+                </div>
+                <p>Weekdays: 10:00 AM - 10:00 PM<br>Weekends: 9:00 AM - 12:00 AM</p>
+            </div>
+            <div class="info-item">
+                <div class="info-icon-wrapper">
+                    <img src="{{ url_for('static', filename='images/icon_phone.png') }}" alt="Contact" class="info-icon">
+                    <h3>Contact</h3>
+                </div>
+                <p>Phone: 0967 074 9494<br>Email: cafenextdoor2023@gmail.com</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

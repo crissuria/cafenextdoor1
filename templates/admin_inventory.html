@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory Management - Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Inventory Management</h1>
+        <p class="page-subtitle">Track ingredients and stock levels</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+            {% if session.user_role in ['admin', 'manager'] %}
+            <a href="{{ url_for('admin_add_ingredient') }}" class="btn btn-primary">+ Add Ingredient</a>
+            {% endif %}
+            <div class="export-buttons">
+                <a href="{{ url_for('export_inventory_csv', filter=filter_type or 'all', search=search_query or '') }}" class="btn btn-primary btn-sm">📥 Export CSV</a>
+                <a href="{{ url_for('export_inventory_pdf', filter=filter_type or 'all', search=search_query or '') }}" class="btn btn-primary btn-sm">📄 Export PDF</a>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        {% if low_stock_count > 0 or out_of_stock_count > 0 %}
+        <div class="inventory-alerts">
+            {% if out_of_stock_count > 0 %}
+            <div class="alert alert-danger">
+                <strong>⚠ {{ out_of_stock_count }} ingredient(s) out of stock!</strong>
+            </div>
+            {% endif %}
+            {% if low_stock_count > 0 %}
+            <div class="alert alert-warning">
+                <strong>⚠ {{ low_stock_count }} ingredient(s) running low!</strong>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Filters and Search -->
+        <div class="inventory-filters">
+            <form method="GET" class="filter-form">
+                <div class="filter-section">
+                    <div class="filter-icon-wrapper">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                        </svg>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-select">Filter by Status</label>
+                        <select name="filter" id="filter-select" onchange="this.form.submit()" class="filter-select">
+                            <option value="all" {% if filter_type == 'all' %}selected{% endif %}>All Ingredients</option>
+                            <option value="low_stock" {% if filter_type == 'low_stock' %}selected{% endif %}>Low Stock</option>
+                            <option value="out_of_stock" {% if filter_type == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
+                            <option value="active" {% if filter_type == 'active' %}selected{% endif %}>Active Only</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="search-section">
+                    <div class="search-icon-wrapper">
+                        <img src="{{ url_for('static', filename='images/cnd-search_icon.png') }}" alt="Search" class="search-icon-img">
+                    </div>
+                    <div class="filter-group search-group">
+                        <label for="search-input">Search Ingredients</label>
+                        <input type="text" name="search" id="search-input" value="{{ search_query }}" placeholder="Search by name, category..." class="search-input">
+                    </div>
+                    <button type="submit" class="btn btn-primary search-submit-btn">
+                        <span>Search</span>
+                    </button>
+                    {% if search_query or filter_type != 'all' %}
+                    <a href="{{ url_for('admin_inventory') }}" class="btn btn-secondary clear-filters-btn">
+                        <span>Clear</span>
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+
+        <!-- Inventory Table -->
+        {% if ingredients %}
+        <div class="admin-menu-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Current Stock</th>
+                        <th>Min Stock</th>
+                        <th>Unit</th>
+                        <th>Cost/Unit</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ingredient in ingredients %}
+                    <tr class="{% if ingredient.current_stock <= 0 %}out-of-stock{% elif ingredient.current_stock <= ingredient.min_stock %}low-stock{% endif %}">
+                        <td><strong>{{ ingredient.name }}</strong></td>
+                        <td>{{ ingredient.category or '-' }}</td>
+                        <td>
+                            <span class="stock-amount">{{ "%.2f"|format(ingredient.current_stock) }}</span>
+                        </td>
+                        <td>{{ "%.2f"|format(ingredient.min_stock) }}</td>
+                        <td>{{ ingredient.unit }}</td>
+                        <td>P{{ "%.2f"|format(ingredient.cost_per_unit) }}</td>
+                        <td>
+                            {% if ingredient.current_stock <= 0 %}
+                                <span class="status-badge status-inactive">Out of Stock</span>
+                            {% elif ingredient.current_stock <= ingredient.min_stock %}
+                                <span class="status-badge status-warning">Low Stock</span>
+                            {% else %}
+                                <span class="status-badge status-active">In Stock</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="{{ url_for('admin_ingredient_detail', ingredient_id=ingredient.id) }}" class="btn btn-small btn-secondary">View</a>
+                                {% if session.user_role in ['admin', 'manager'] %}
+                                <a href="{{ url_for('admin_edit_ingredient', ingredient_id=ingredient.id) }}" class="btn btn-small btn-primary">Edit</a>
+                                <button type="button" class="btn btn-small btn-info" onclick="showStockModal({{ ingredient.id }}, '{{ ingredient.name }}', '{{ ingredient.unit }}')">Update Stock</button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No ingredients found.</p>
+            {% if session.user_role in ['admin', 'manager'] %}
+            <a href="{{ url_for('admin_add_ingredient') }}" class="btn btn-primary">Add First Ingredient</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Stock Update Modal -->
+<div id="stockModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeStockModal()">&times;</span>
+        <h2>Update Stock</h2>
+        <form method="POST" action="" id="stock-form">
+            <input type="hidden" name="ingredient_id" id="modal_ingredient_id">
+            <div class="form-group">
+                <label>Ingredient: <span id="modal_ingredient_name"></span></label>
+            </div>
+            <div class="form-group">
+                <label for="adjustment">Stock Adjustment *</label>
+                <input type="number" id="adjustment" name="adjustment" step="0.01" required>
+                <small>Enter positive number to add stock, negative to subtract. Unit: <span id="modal_unit"></span></small>
+            </div>
+            <div class="form-group">
+                <label for="notes">Notes (optional)</label>
+                <textarea id="notes" name="notes" rows="2" placeholder="e.g., Restocked from supplier"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Update Stock</button>
+                <button type="button" class="btn btn-secondary" onclick="closeStockModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showStockModal(ingredientId, ingredientName, unit) {
+    document.getElementById('modal_ingredient_id').value = ingredientId;
+    document.getElementById('modal_ingredient_name').textContent = ingredientName;
+    document.getElementById('modal_unit').textContent = unit;
+    document.getElementById('stock-form').action = '/admin/inventory/' + ingredientId + '/update-stock';
+    document.getElementById('stockModal').style.display = 'block';
+}
+
+function closeStockModal() {
+    document.getElementById('stockModal').style.display = 'none';
+    document.getElementById('stock-form').reset();
+}
+
+window.onclick = function(event) {
+    const modal = document.getElementById('stockModal');
+    if (event.target == modal) {
+        closeStockModal();
+    }
+}
+</script>
+{% endblock %}
+

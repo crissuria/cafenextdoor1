@@ -9,11 +9,12 @@ from app import app, init_database
 # Initialize database on startup
 try:
     init_database()
-    print("Database initialized successfully")
+    print("Database initialized successfully on startup")
 except Exception as e:
-    print(f"Error initializing database: {str(e)}", file=sys.stderr)
+    print(f"WARNING: Error initializing database on startup: {str(e)}", file=sys.stderr)
+    print("Database will be initialized on first use", file=sys.stderr)
     # Don't raise - let the app start and handle errors gracefully
-    # The database will be initialized on first use if needed
+    # The database will be initialized on first use if needed via get_db_connection()
 
 # This is the application object that WSGI servers will use
 application = app

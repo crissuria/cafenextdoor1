@@ -28,7 +28,8 @@ app.config['CAFE_EMAIL'] = 'kalititilaokk@gmail.com'  # Cafe's email address
 mail = Mail(app)
 
 # Database configuration
-DATABASE_DIR = 'database'
+# Use absolute path for better compatibility with hosting platforms
+DATABASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database')
 DATABASE_PATH = os.path.join(DATABASE_DIR, 'cafe.db')
 
 # File upload configuration
@@ -46,95 +47,117 @@ def init_database():
     try:
         # Create database directory if it doesn't exist
         os.makedirs(DATABASE_DIR, exist_ok=True)
+        print(f"Database directory: {DATABASE_DIR}")
+        print(f"Database path: {DATABASE_PATH}")
         
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
+        print("Database connection established")
     except Exception as e:
         print(f"Error initializing database directory: {str(e)}")
         raise
     
-    # Create menu_items table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS menu_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT,
-            price REAL NOT NULL,
-            category TEXT NOT NULL,
-            image_url TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Create users table for admin authentication
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Create contact_messages table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS contact_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL,
-            message TEXT NOT NULL,
-            archived INTEGER DEFAULT 0,
-            ip_address TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Create rate_limiting table for spam protection
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS rate_limiting (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ip_address TEXT NOT NULL,
-            email TEXT,
-            submission_count INTEGER DEFAULT 1,
-            last_submission TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Add archived column if it doesn't exist (for existing databases)
     try:
-        cursor.execute('ALTER TABLE contact_messages ADD COLUMN archived INTEGER DEFAULT 0')
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-    
-    # Add ip_address column if it doesn't exist (for existing databases)
-    try:
-        cursor.execute('ALTER TABLE contact_messages ADD COLUMN ip_address TEXT')
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-    
-    # Check if database is empty and seed it
-    cursor.execute('SELECT COUNT(*) FROM menu_items')
-    count = cursor.fetchone()[0]
-    
-    if count == 0:
-        seed_database(cursor)
-    
-    # Create default admin user if it doesn't exist
-    cursor.execute('SELECT COUNT(*) FROM users')
-    user_count = cursor.fetchone()[0]
-    
-    if user_count == 0:
-        # Default admin credentials: username='admin', password='admin123'
-        # In production, change this password immediately!
-        default_password = generate_password_hash('admin123')
+        # Create menu_items table
         cursor.execute('''
-            INSERT INTO users (username, password_hash)
-            VALUES (?, ?)
-        ''', ('admin', default_password))
-    
-    conn.commit()
-    conn.close()
+            CREATE TABLE IF NOT EXISTS menu_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                price REAL NOT NULL,
+                category TEXT NOT NULL,
+                image_url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        print("menu_items table created/verified")
+        
+        # Create users table for admin authentication
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        print("users table created/verified")
+        
+        # Create contact_messages table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS contact_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                message TEXT NOT NULL,
+                archived INTEGER DEFAULT 0,
+                ip_address TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        print("contact_messages table created/verified")
+        
+        # Create rate_limiting table for spam protection
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS rate_limiting (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip_address TEXT NOT NULL,
+                email TEXT,
+                submission_count INTEGER DEFAULT 1,
+                last_submission TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        print("rate_limiting table created/verified")
+        
+        # Add archived column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute('ALTER TABLE contact_messages ADD COLUMN archived INTEGER DEFAULT 0')
+            print("Added archived column to contact_messages")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        # Add ip_address column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute('ALTER TABLE contact_messages ADD COLUMN ip_address TEXT')
+            print("Added ip_address column to contact_messages")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        conn.commit()
+        
+        # Check if database is empty and seed it
+        cursor.execute('SELECT COUNT(*) FROM menu_items')
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            print("Database is empty, seeding with initial data...")
+            seed_database(cursor)
+            conn.commit()
+            print("Database seeded successfully")
+        
+        # Create default admin user if it doesn't exist
+        cursor.execute('SELECT COUNT(*) FROM users')
+        user_count = cursor.fetchone()[0]
+        
+        if user_count == 0:
+            print("No admin user found, creating default admin...")
+            # Default admin credentials: username='admin', password='admin123'
+            # In production, change this password immediately!
+            default_password = generate_password_hash('admin123')
+            cursor.execute('''
+                INSERT INTO users (username, password_hash)
+                VALUES (?, ?)
+            ''', ('admin', default_password))
+            conn.commit()
+            print("Default admin user created")
+        
+        conn.close()
+        print("Database initialization completed successfully")
+    except Exception as e:
+        conn.close()
+        print(f"Error during database initialization: {str(e)}")
+        raise
 
 def seed_database(cursor):
     """Seed the database with initial menu items."""
@@ -163,6 +186,24 @@ def get_db_connection():
         os.makedirs(DATABASE_DIR, exist_ok=True)
         conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
+        
+        # Verify tables exist, if not, initialize database
+        try:
+            cursor = conn.cursor()
+            cursor.execute('SELECT name FROM sqlite_master WHERE type="table" AND name="menu_items"')
+            if cursor.fetchone() is None:
+                print("Tables not found, initializing database...")
+                conn.close()
+                init_database()
+                conn = sqlite3.connect(DATABASE_PATH)
+                conn.row_factory = sqlite3.Row
+        except Exception as e:
+            print(f"Error checking tables: {str(e)}")
+            conn.close()
+            init_database()
+            conn = sqlite3.connect(DATABASE_PATH)
+            conn.row_factory = sqlite3.Row
+        
         return conn
     except Exception as e:
         print(f"Error connecting to database: {str(e)}")

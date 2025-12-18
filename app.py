@@ -50,9 +50,10 @@ def init_database():
         print(f"Database directory: {DATABASE_DIR}")
         print(f"Database path: {DATABASE_PATH}")
         
-        conn = sqlite3.connect(DATABASE_PATH)
-        cursor = conn.cursor()
-        print("Database connection established")
+            # Use timeout to handle locking issues
+            conn = sqlite3.connect(DATABASE_PATH, timeout=10.0)
+            cursor = conn.cursor()
+            print("Database connection established")
     except Exception as e:
         print(f"Error initializing database directory: {str(e)}")
         raise
@@ -152,10 +153,21 @@ def init_database():
             conn.commit()
             print("Default admin user created")
         
+        # Verify all tables were created
+        cursor.execute('SELECT name FROM sqlite_master WHERE type="table"')
+        created_tables = [row[0] for row in cursor.fetchall()]
+        print(f"Created tables: {created_tables}")
+        
+        required_tables = ['menu_items', 'users', 'contact_messages', 'rate_limiting']
+        missing_tables = [t for t in required_tables if t not in created_tables]
+        if missing_tables:
+            raise Exception(f"Failed to create required tables: {missing_tables}")
+        
         conn.close()
         print("Database initialization completed successfully")
     except Exception as e:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
         print(f"Error during database initialization: {str(e)}")
         raise
 
@@ -181,33 +193,81 @@ def seed_database(cursor):
 
 def get_db_connection():
     """Get a database connection."""
-    try:
-        # Ensure database directory exists
-        os.makedirs(DATABASE_DIR, exist_ok=True)
-        conn = sqlite3.connect(DATABASE_PATH)
-        conn.row_factory = sqlite3.Row
-        
-        # Verify tables exist, if not, initialize database
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            cursor = conn.cursor()
-            cursor.execute('SELECT name FROM sqlite_master WHERE type="table" AND name="menu_items"')
-            if cursor.fetchone() is None:
-                print("Tables not found, initializing database...")
+            # Ensure database directory exists
+            os.makedirs(DATABASE_DIR, exist_ok=True)
+            print(f"Attempt {attempt + 1}: Connecting to database at {DATABASE_PATH}")
+            
+            # Check if database file exists
+            db_exists = os.path.exists(DATABASE_PATH)
+            print(f"Database file exists: {db_exists}")
+            
+            # Use timeout to handle locking issues
+            conn = sqlite3.connect(DATABASE_PATH, timeout=10.0)
+            conn.row_factory = sqlite3.Row
+            
+            # Verify tables exist, if not, initialize database
+            try:
+                cursor = conn.cursor()
+                cursor.execute('SELECT name FROM sqlite_master WHERE type="table" AND name="menu_items"')
+                table_exists = cursor.fetchone() is not None
+                print(f"menu_items table exists: {table_exists}")
+                
+                if not table_exists:
+                    print("Tables not found, initializing database...")
+                    conn.close()
+                    init_database()
+                    # Reconnect after initialization
+                    conn = sqlite3.connect(DATABASE_PATH)
+                    conn.row_factory = sqlite3.Row
+                    # Verify initialization worked
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT name FROM sqlite_master WHERE type="table" AND name="menu_items"')
+                    if cursor.fetchone() is None:
+                        raise Exception("Database initialization failed - tables still not found")
+                    print("Database initialization verified successfully")
+            except sqlite3.Error as e:
+                print(f"SQLite error checking tables: {str(e)}")
                 conn.close()
+                # Try to initialize
+                print("Attempting to initialize database after error...")
                 init_database()
                 conn = sqlite3.connect(DATABASE_PATH)
                 conn.row_factory = sqlite3.Row
+            except Exception as e:
+                print(f"Error checking/initializing tables: {str(e)}")
+                conn.close()
+                # Force re-initialization
+                if os.path.exists(DATABASE_PATH):
+                    try:
+                        os.remove(DATABASE_PATH)
+                        print("Removed corrupted database file")
+                    except:
+                        pass
+                init_database()
+                conn = sqlite3.connect(DATABASE_PATH)
+                conn.row_factory = sqlite3.Row
+            
+            return conn
         except Exception as e:
-            print(f"Error checking tables: {str(e)}")
-            conn.close()
-            init_database()
-            conn = sqlite3.connect(DATABASE_PATH)
-            conn.row_factory = sqlite3.Row
-        
-        return conn
-    except Exception as e:
-        print(f"Error connecting to database: {str(e)}")
-        raise
+            print(f"Error connecting to database (attempt {attempt + 1}/{max_retries}): {str(e)}")
+            if attempt == max_retries - 1:
+                # Last attempt failed, try one more initialization
+                print("All connection attempts failed, trying final initialization...")
+                try:
+                    if os.path.exists(DATABASE_PATH):
+                        os.remove(DATABASE_PATH)
+                    init_database()
+                    conn = sqlite3.connect(DATABASE_PATH)
+                    conn.row_factory = sqlite3.Row
+                    return conn
+                except Exception as final_error:
+                    print(f"Final initialization attempt failed: {str(final_error)}")
+                    raise
+            import time
+            time.sleep(0.5)  # Brief delay before retry
 
 # Error handlers
 @app.errorhandler(404)
@@ -766,10 +826,50 @@ def health_check():
         # Test database connection
         conn = get_db_connection()
         conn.execute('SELECT 1').fetchone()
+        
+        # Check if tables exist
+        cursor = conn.cursor()
+        cursor.execute('SELECT name FROM sqlite_master WHERE type="table"')
+        tables = [row[0] for row in cursor.fetchall()]
+        
         conn.close()
-        return {'status': 'healthy', 'database': 'connected'}, 200
+        return {
+            'status': 'healthy', 
+            'database': 'connected',
+            'tables': tables,
+            'database_path': DATABASE_PATH,
+            'database_exists': os.path.exists(DATABASE_PATH)
+        }, 200
     except Exception as e:
         return {'status': 'unhealthy', 'error': str(e)}, 500
+
+# Debug route to manually initialize database
+@app.route('/init-db')
+def manual_init_db():
+    """Manually initialize database - for debugging."""
+    try:
+        init_database()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT name FROM sqlite_master WHERE type="table"')
+        tables = [row[0] for row in cursor.fetchall()]
+        cursor.execute('SELECT COUNT(*) FROM menu_items')
+        menu_count = cursor.fetchone()[0]
+        conn.close()
+        return {
+            'status': 'success',
+            'message': 'Database initialized successfully',
+            'tables': tables,
+            'menu_items_count': menu_count,
+            'database_path': DATABASE_PATH
+        }, 200
+    except Exception as e:
+        return {
+            'status': 'error',
+            'message': 'Database initialization failed',
+            'error': str(e),
+            'database_path': DATABASE_PATH
+        }, 500
 
 if __name__ == '__main__':
     try:

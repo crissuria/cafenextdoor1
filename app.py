@@ -2113,37 +2113,95 @@ def admin_edit(item_id):
 @manager_required
 def admin_delete(item_id):
     """Admin route - deletes a menu item."""
-    conn = get_db_connection()
-    item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
-    
-    if item:
+    conn = None
+    try:
+        conn = get_db_connection()
+        item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
+        
+        if not item:
+            conn.close()
+            flash('Menu item not found.', 'error')
+            return redirect(url_for('admin_menu'))
+        
+        item_name = item['name'] if isinstance(item, dict) else item[1]  # Get name for flash message
+        
+        # Delete related records first (to avoid foreign key constraints)
+        try:
+            # Delete from menu_item_ingredients (should cascade, but being explicit)
+            conn.execute('DELETE FROM menu_item_ingredients WHERE menu_item_id = ?', (item_id,))
+        except Exception as e:
+            print(f"Warning: Error deleting menu_item_ingredients: {e}")
+        
+        # Delete from favorites
+        try:
+            conn.execute('DELETE FROM favorites WHERE menu_item_id = ?', (item_id,))
+        except Exception as e:
+            print(f"Warning: Error deleting favorites: {e}")
+        
+        # Delete the menu item
         conn.execute('DELETE FROM menu_items WHERE id = ?', (item_id,))
         conn.commit()
-        flash(f'Menu item "{item["name"]}" has been deleted successfully!', 'success')
-    else:
-        flash('Menu item not found.', 'error')
-    
-    conn.close()
-    return redirect(url_for('admin_menu'))
+        
+        flash(f'Menu item "{item_name}" has been deleted successfully!', 'success')
+        conn.close()
+        return redirect(url_for('admin_menu'))
+    except Exception as e:
+        import traceback
+        error_msg = f'Error deleting menu item: {str(e)}'
+        print(error_msg)
+        print(traceback.format_exc())
+        if conn:
+            try:
+                conn.rollback()
+                conn.close()
+            except:
+                pass
+        flash(error_msg, 'error')
+        return redirect(url_for('admin_menu'))
 
 @app.route('/admin/toggle-availability/<int:item_id>', methods=['POST'])
 @login_required
 def admin_toggle_availability(item_id):
     """Toggle menu item availability (sold out / available)."""
-    conn = get_db_connection()
-    item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
-    
-    if item:
-        new_status = 0 if item['is_available'] else 1
+    conn = None
+    try:
+        conn = get_db_connection()
+        item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
+        
+        if not item:
+            conn.close()
+            flash('Menu item not found.', 'error')
+            return redirect(url_for('admin_menu'))
+        
+        # Convert Row to dict if needed
+        if not isinstance(item, dict):
+            item = dict(item)
+        
+        current_status = item.get('is_available', 1)
+        new_status = 0 if current_status else 1
+        
         conn.execute('UPDATE menu_items SET is_available = ? WHERE id = ?', (new_status, item_id))
         conn.commit()
+        
         status_text = 'available' if new_status else 'sold out'
-        flash(f'"{item["name"]}" marked as {status_text}.', 'success')
-    else:
-        flash('Menu item not found.', 'error')
-    
-    conn.close()
-    return redirect(url_for('admin_menu'))
+        item_name = item.get('name', 'Item')
+        flash(f'"{item_name}" marked as {status_text}.', 'success')
+        
+        conn.close()
+        return redirect(url_for('admin_menu'))
+    except Exception as e:
+        import traceback
+        error_msg = f'Error toggling availability: {str(e)}'
+        print(error_msg)
+        print(traceback.format_exc())
+        if conn:
+            try:
+                conn.rollback()
+                conn.close()
+            except:
+                pass
+        flash(error_msg, 'error')
+        return redirect(url_for('admin_menu'))
 
 @app.route('/admin/messages', methods=['GET'])
 @login_required

@@ -2321,14 +2321,15 @@ def customer_register():
             except sqlite3.OperationalError:
                 pass  # Column already exists, that's fine
             
-            # Insert customer
-            conn.execute('''
+            # Insert customer using cursor to get lastrowid
+            cursor = conn.cursor()
+            cursor.execute('''
                 INSERT INTO customers (email, password_hash, first_name, last_name, phone, email_verified)
                 VALUES (?, ?, ?, ?, ?, 0)
             ''', (email, password_hash, first_name, last_name, phone))
             
             # Get the new customer ID
-            customer_id = conn.lastrowid
+            customer_id = cursor.lastrowid
             conn.commit()
             
             # Send verification email

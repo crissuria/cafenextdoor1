@@ -1330,11 +1330,22 @@ def generate_verification_code():
 
 def send_verification_email(customer_email, customer_name, verification_code):
     """Send email verification code to customer."""
-    if not app.config.get('MAIL_PASSWORD') or not app.config.get('MAIL_USERNAME'):
-        return False, 'Email service is not configured.'
+    # Check email configuration
+    mail_username = app.config.get('MAIL_USERNAME', '')
+    mail_password = app.config.get('MAIL_PASSWORD', '')
+    
+    if not mail_password or not mail_username:
+        error_msg = 'Email service is not configured. Please set MAIL_USERNAME and MAIL_PASSWORD environment variables.'
+        print(f"EMAIL ERROR: {error_msg}")
+        print(f"MAIL_USERNAME is set: {bool(mail_username)}")
+        print(f"MAIL_PASSWORD is set: {bool(mail_password)}")
+        return False, error_msg
     
     try:
-        sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+        sender = app.config.get('MAIL_DEFAULT_SENDER', mail_username)
+        if not sender:
+            sender = mail_username
+        
         subject = 'Email Verification Code - Cafe Next Door'
         body = f'''Hello {customer_name or 'Customer'},
 
@@ -1355,13 +1366,23 @@ Cafe Next Door Team'''
             body=body,
             sender=sender
         )
+        
+        # Log email attempt
+        print(f"Attempting to send verification email to {customer_email}")
+        print(f"Using sender: {sender}")
+        print(f"SMTP server: {app.config.get('MAIL_SERVER')}:{app.config.get('MAIL_PORT')}")
+        
         mail.send(msg)
-        print(f"Verification email sent successfully to {customer_email}")
+        print(f"✓ Verification email sent successfully to {customer_email}")
+        print(f"  Verification code: {verification_code}")  # Log for debugging
         return True, None
     except Exception as e:
         import traceback
         error_msg = f'Error sending verification email: {str(e)}'
-        print(error_msg)
+        print(f"✗ EMAIL SEND FAILED: {error_msg}")
+        print(f"  Recipient: {customer_email}")
+        print(f"  Sender: {app.config.get('MAIL_DEFAULT_SENDER', 'Not set')}")
+        print(f"  SMTP: {app.config.get('MAIL_SERVER')}:{app.config.get('MAIL_PORT')}")
         print(traceback.format_exc())
         return False, error_msg
 
@@ -2335,11 +2356,17 @@ def customer_register():
             # Send verification email
             code, error_msg = create_verification_code(customer_id, email, conn)
             if code:
+                # Log verification code for debugging (check Render logs)
+                print(f"DEBUG: Verification code for {email}: {code}")
+                
                 email_sent, email_error = send_verification_email(email, first_name, code)
                 if email_sent:
                     flash('Account created successfully! A verification code has been sent to your email address.', 'success')
                 else:
-                    flash(f'Account created successfully! However, we couldn\'t send the verification email: {email_error}. Please contact support.', 'warning')
+                    # Show more helpful error message
+                    error_display = email_error or 'Unknown error'
+                    flash(f'Account created successfully! However, we couldn\'t send the verification email. Error: {error_display}. You can request a new code from your profile page.', 'warning')
+                    print(f"WARNING: Account created but email failed for {email}. Code: {code}")
             else:
                 flash(f'Account created successfully! However, we couldn\'t generate a verification code: {error_msg}. Please contact support.', 'warning')
             

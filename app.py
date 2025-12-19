@@ -2184,16 +2184,39 @@ def customer_register():
             return render_template('customer_register.html')
         
         # Create account
-        password_hash = generate_password_hash(password)
-        conn.execute('''
-            INSERT INTO customers (email, password_hash, first_name, last_name, phone, email_verified)
-            VALUES (?, ?, ?, ?, ?, 0)
-        ''', (email, password_hash, first_name, last_name, phone))
-        conn.commit()
-        conn.close()
-        
-        flash('Account created successfully! Please log in and verify your email address.', 'success')
-        return redirect(url_for('customer_login'))
+        try:
+            password_hash = generate_password_hash(password)
+            # Try to insert with email_verified column
+            try:
+                conn.execute('''
+                    INSERT INTO customers (email, password_hash, first_name, last_name, phone, email_verified)
+                    VALUES (?, ?, ?, ?, ?, 0)
+                ''', (email, password_hash, first_name, last_name, phone))
+            except sqlite3.OperationalError as e:
+                # Column doesn't exist, add it first
+                if 'no such column: email_verified' in str(e).lower():
+                    print(f"Adding email_verified column: {str(e)}")
+                    conn.execute('ALTER TABLE customers ADD COLUMN email_verified INTEGER DEFAULT 0')
+                    # Now insert without email_verified (will use default 0)
+                    conn.execute('''
+                        INSERT INTO customers (email, password_hash, first_name, last_name, phone)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (email, password_hash, first_name, last_name, phone))
+                else:
+                    raise  # Re-raise if it's a different error
+            
+            conn.commit()
+            conn.close()
+            
+            flash('Account created successfully! Please log in and verify your email address.', 'success')
+            return redirect(url_for('customer_login'))
+        except Exception as e:
+            import traceback
+            print(f"Error creating account: {str(e)}")
+            print(traceback.format_exc())
+            conn.close()
+            flash(f'Error creating account: {str(e)}. Please try again or contact support.', 'error')
+            return render_template('customer_register.html')
     
     return render_template('customer_register.html')
 

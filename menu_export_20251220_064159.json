@@ -1,0 +1,498 @@
+[
+  {
+    "name": "Cold Brew",
+    "description": "Smooth, slow-steeped cold coffee",
+    "price": 150.0,
+    "category": "Cold Drinks",
+    "image_url": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Frappuccino",
+    "description": "Blended coffee with ice and cream",
+    "price": 195.0,
+    "category": "Cold Drinks",
+    "image_url": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=800&h=600&fit=crop",
+    "is_available": "2025-11-25 19:09:47"
+  },
+  {
+    "name": "Iced Americano",
+    "description": "Espresso with cold water over ice",
+    "price": 110.0,
+    "category": "Cold Drinks",
+    "image_url": "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Iced Caramel Macchiato",
+    "description": "Vanilla, espresso, caramel, and ice",
+    "price": 190.0,
+    "category": "Cold Drinks",
+    "image_url": "/static/images/menu/Iced_Caramel_Macchiato_20251219_093606.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Iced Chai Latte",
+    "description": "Spiced tea with cold milk over ice",
+    "price": 145.0,
+    "category": "Cold Drinks",
+    "image_url": "/static/images/menu/Iced_Chai_Latte_20251219_093902.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Iced Coffee",
+    "description": "Cold brewed coffee over ice",
+    "price": 135.0,
+    "category": "Cold Drinks",
+    "image_url": "/static/images/menu/Iced_Coffee_20251219_134932.jpg",
+    "is_available": "2025-11-25 19:09:47"
+  },
+  {
+    "name": "Iced Latte",
+    "description": "Espresso with cold milk over ice",
+    "price": 165.0,
+    "category": "Cold Drinks",
+    "image_url": "/static/images/menu/Iced_Latte_20251219_135023.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Iced Matcha Latte",
+    "description": "Japanese green tea with cold milk",
+    "price": 170.0,
+    "category": "Cold Drinks",
+    "image_url": "/static/images/menu/Iced_Matcha_Latte_20251219_094104.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Iced Mocha",
+    "description": "Espresso, chocolate, and cold milk over ice",
+    "price": 175.0,
+    "category": "Cold Drinks",
+    "image_url": "/static/images/menu/Iced_Mocha_20251219_135106.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Iced Tea",
+    "description": "Refreshing iced tea",
+    "price": 100.0,
+    "category": "Cold Drinks",
+    "image_url": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Lemonade",
+    "description": "Freshly squeezed lemonade",
+    "price": 100.0,
+    "category": "Cold Drinks",
+    "image_url": "https://images.unsplash.com/photo-1523677011783-c91d1bbe2fdc?w=800&h=600&fit=crop",
+    "is_available": "2025-12-19 16:23:46"
+  },
+  {
+    "name": "Mango Smoothie",
+    "description": "Tropical mango blended to perfection",
+    "price": 150.0,
+    "category": "Cold Drinks",
+    "image_url": "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Nitro Cold Brew",
+    "description": "Smooth, creamy cold brew on tap",
+    "price": 180.0,
+    "category": "Cold Drinks",
+    "image_url": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=600&fit=crop",
+    "is_available": "2025-12-19 16:23:46"
+  },
+  {
+    "name": "Strawberry Smoothie",
+    "description": "Fresh strawberries blended with yogurt",
+    "price": 150.0,
+    "category": "Cold Drinks",
+    "image_url": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Apple Pie",
+    "description": "Classic apple pie with flaky crust",
+    "price": 170.0,
+    "category": "Desserts",
+    "image_url": "/static/images/menu/Apple_Pie_20251219_135148.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Brownie",
+    "description": "Fudgy chocolate brownie",
+    "price": 120.0,
+    "category": "Desserts",
+    "image_url": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Carrot Cake",
+    "description": "Spiced carrot cake with cream cheese",
+    "price": 170.0,
+    "category": "Desserts",
+    "image_url": "/static/images/menu/Carrot_Cake_20251219_094423.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Cheesecake",
+    "description": "Creamy New York style cheesecake",
+    "price": 195.0,
+    "category": "Desserts",
+    "image_url": "https://images.unsplash.com/photo-1524351199678-94160358e893?w=800&h=600&fit=crop",
+    "is_available": "2025-12-19 16:23:46"
+  },
+  {
+    "name": "Chocolate Cake",
+    "description": "Rich chocolate layer cake",
+    "price": 180.0,
+    "category": "Desserts",
+    "image_url": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&h=600&fit=crop",
+    "is_available": "2025-11-25 19:09:47"
+  },
+  {
+    "name": "Chocolate Chip Cookie",
+    "description": "Warm, gooey chocolate chip cookie",
+    "price": 100.0,
+    "category": "Desserts",
+    "image_url": "/static/images/menu/Chocolate_Chip_Cookie_20251219_095116.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Chocolate Mousse",
+    "description": "Light and airy chocolate mousse",
+    "price": 165.0,
+    "category": "Desserts",
+    "image_url": "/static/images/menu/Chocolate_Mousse_20251219_095009.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Ice Cream Sundae",
+    "description": "Vanilla ice cream with toppings",
+    "price": 150.0,
+    "category": "Desserts",
+    "image_url": "/static/images/menu/Ice_Cream_Sundae_20251219_134522.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Key Lime Pie",
+    "description": "Tart and creamy key lime pie",
+    "price": 170.0,
+    "category": "Desserts",
+    "image_url": "/static/images/menu/Key_Lime_Pie_20251219_134424.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Lemon Tart",
+    "description": "Tangy lemon curd in buttery crust",
+    "price": 160.0,
+    "category": "Desserts",
+    "image_url": "/static/images/menu/Lemon_Tart_20251219_134617.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Pecan Pie",
+    "description": "Rich pecan pie with caramel",
+    "price": 185.0,
+    "category": "Desserts",
+    "image_url": "/static/images/menu/Pecan_Pie_20251219_134707.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Red Velvet Cake",
+    "description": "Moist red velvet with cream cheese frosting",
+    "price": 190.0,
+    "category": "Desserts",
+    "image_url": "/static/images/menu/Red_Velvet_Cake_20251219_134836.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Tiramisu",
+    "description": "Classic Italian coffee-flavored dessert",
+    "price": 200.0,
+    "category": "Desserts",
+    "image_url": "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Americano",
+    "description": "Espresso with hot water",
+    "price": 110.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Caffe Breve",
+    "description": "Espresso with half-and-half cream",
+    "price": 180.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&h=600&fit=crop",
+    "is_available": "2025-12-19 16:23:46"
+  },
+  {
+    "name": "Cappuccino",
+    "description": "Espresso with steamed milk and foam",
+    "price": 160.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=800&h=600&fit=crop",
+    "is_available": "2025-11-25 19:09:47"
+  },
+  {
+    "name": "Caramel Macchiato",
+    "description": "Vanilla syrup, espresso, caramel drizzle",
+    "price": 190.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&h=600&fit=crop",
+    "is_available": "2025-12-19 16:23:46"
+  },
+  {
+    "name": "Chai Latte",
+    "description": "Spiced tea with steamed milk",
+    "price": 160.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Cortado",
+    "description": "Espresso with equal parts warm milk",
+    "price": 145.0,
+    "category": "Hot Drinks",
+    "image_url": "/static/images/menu/Cortado_20251219_135344.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Espresso",
+    "description": "Strong and bold Italian coffee",
+    "price": 105.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?w=800&h=600&fit=crop",
+    "is_available": "2025-11-25 19:09:47"
+  },
+  {
+    "name": "Flat White",
+    "description": "Double espresso with microfoam milk",
+    "price": 170.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&h=600&fit=crop",
+    "is_available": "2025-12-19 16:23:46"
+  },
+  {
+    "name": "Hazelnut Latte",
+    "description": "Espresso with hazelnut syrup and milk",
+    "price": 170.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&h=600&fit=crop",
+    "is_available": "2025-12-19 16:23:46"
+  },
+  {
+    "name": "Hot Chocolate",
+    "description": "Rich and creamy chocolate drink",
+    "price": 135.0,
+    "category": "Hot Drinks",
+    "image_url": "/static/images/menu/Hot_Chocolate_20251219_135437.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Latte",
+    "description": "Smooth espresso with steamed milk",
+    "price": 165.0,
+    "category": "Hot Drinks",
+    "image_url": "/static/images/menu/Latte_20251219_135530.jpeg",
+    "is_available": "2025-11-25 19:09:47"
+  },
+  {
+    "name": "Macchiato",
+    "description": "Espresso with a dollop of foamed milk",
+    "price": 140.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1517487881594-2787fef5ebf7?w=800&h=600&fit=crop",
+    "is_available": "2025-12-19 16:23:46"
+  },
+  {
+    "name": "Matcha Latte",
+    "description": "Japanese green tea with steamed milk",
+    "price": 170.0,
+    "category": "Hot Drinks",
+    "image_url": "/static/images/menu/Matcha_Latte_20251219_135624.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Mocha",
+    "description": "Espresso with chocolate and steamed milk",
+    "price": 175.0,
+    "category": "Hot Drinks",
+    "image_url": "/static/images/menu/Mocha_20251219_135738.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Vanilla Latte",
+    "description": "Espresso with vanilla syrup and steamed milk",
+    "price": 170.0,
+    "category": "Hot Drinks",
+    "image_url": "https://images.unsplash.com/photo-1607958996333-41aef7caefaa?w=800&h=600&fit=crop",
+    "is_available": "2025-12-19 16:23:46"
+  },
+  {
+    "name": "Avocado Toast",
+    "description": "Smashed avocado on sourdough",
+    "price": 175.0,
+    "category": "Light Meals",
+    "image_url": "/static/images/menu/Avocado_Toast_20251219_093318.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Caesar Salad",
+    "description": "Fresh romaine with Caesar dressing",
+    "price": 185.0,
+    "category": "Light Meals",
+    "image_url": "https://images.unsplash.com/photo-1546793665-c74683f339c1?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Caprese Sandwich",
+    "description": "Fresh mozzarella, tomato, and basil",
+    "price": 180.0,
+    "category": "Light Meals",
+    "image_url": "/static/images/menu/Caprese_Sandwich_20251219_093158.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Chicken Panini",
+    "description": "Grilled chicken panini",
+    "price": 200.0,
+    "category": "Light Meals",
+    "image_url": "/static/images/menu/Chicken_Panini_20251219_135922.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Greek Salad",
+    "description": "Mixed greens with feta and olives",
+    "price": 185.0,
+    "category": "Light Meals",
+    "image_url": "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Grilled Cheese",
+    "description": "Classic grilled cheese sandwich",
+    "price": 160.0,
+    "category": "Light Meals",
+    "image_url": "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Quiche",
+    "description": "Savory egg and cheese quiche",
+    "price": 170.0,
+    "category": "Light Meals",
+    "image_url": "/static/images/menu/Quiche_20251219_140011.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Turkey Sandwich",
+    "description": "Sliced turkey with veggies",
+    "price": 190.0,
+    "category": "Light Meals",
+    "image_url": "https://images.unsplash.com/photo-1544025162-d76694265947?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Almond Croissant",
+    "description": "Buttery croissant with almond filling",
+    "price": 150.0,
+    "category": "Pastries",
+    "image_url": "/static/images/menu/Almond_Croissant_20251219_091208.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Apple Turnover",
+    "description": "Flaky pastry with apple filling",
+    "price": 150.0,
+    "category": "Pastries",
+    "image_url": "/static/images/menu/Apple_Turnover_20251219_091406.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Bagel",
+    "description": "Fresh New York style bagel",
+    "price": 105.0,
+    "category": "Pastries",
+    "image_url": "https://images.unsplash.com/photo-1586444248902-2f64eddc13df?w=800&h=600&fit=crop",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Banana Bread",
+    "description": "Moist homemade banana bread",
+    "price": 140.0,
+    "category": "Pastries",
+    "image_url": "/static/images/menu/Banana_Bread_20251219_091712.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Blueberry Muffin",
+    "description": "Fresh baked with blueberries",
+    "price": 130.0,
+    "category": "Pastries",
+    "image_url": "https://images.unsplash.com/photo-1607958996333-41aef7caefaa?w=800&h=600&fit=crop",
+    "is_available": "2025-11-25 19:09:47"
+  },
+  {
+    "name": "Chocolate Chip Muffin",
+    "description": "Classic muffin with chocolate chips",
+    "price": 130.0,
+    "category": "Pastries",
+    "image_url": "/static/images/menu/Chocolate_Chip_Muffin_20251219_092049.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Chocolate Croissant",
+    "description": "Buttery croissant with chocolate",
+    "price": 150.0,
+    "category": "Pastries",
+    "image_url": "/static/images/menu/Chocolate_Croissant_20251219_092117.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Cinnamon Roll",
+    "description": "Sweet roll with cinnamon and glaze",
+    "price": 155.0,
+    "category": "Pastries",
+    "image_url": "/static/images/menu/Cinnamon_Roll_20251219_092252.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Croissant",
+    "description": "Buttery French pastry",
+    "price": 110.0,
+    "category": "Pastries",
+    "image_url": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&h=600&fit=crop",
+    "is_available": "2025-11-25 19:09:47"
+  },
+  {
+    "name": "Danish Pastry",
+    "description": "Flaky pastry with fruit filling",
+    "price": 145.0,
+    "category": "Pastries",
+    "image_url": "/static/images/menu/Danish_Pastry_20251219_092630.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Donut",
+    "description": "Classic glazed donut",
+    "price": 100.0,
+    "category": "Pastries",
+    "image_url": "/static/images/menu/Donut_20251219_092602.webp",
+    "is_available": "2025-12-18 21:27:03"
+  },
+  {
+    "name": "Scone",
+    "description": "Traditional British scone with jam",
+    "price": 135.0,
+    "category": "Pastries",
+    "image_url": "/static/images/menu/Scone_20251219_092539.jpg",
+    "is_available": "2025-12-18 21:27:03"
+  }
+]

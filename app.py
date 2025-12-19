@@ -3413,31 +3413,52 @@ def verify_email():
 @customer_login_required
 def send_verification_code():
     """Send verification code to customer's email."""
-    conn = get_db_connection()
-    customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
-    
-    if not customer['email']:
-        conn.close()
-        flash('Email address not found. Please contact support.', 'error')
-        return redirect(url_for('customer_profile'))
-    
-    # Generate code
-    code = generate_verification_code()
-    expires_at = (datetime.now() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
-    
-    # Save verification code
-    conn.execute('''
-        INSERT INTO email_verifications (customer_id, email, verification_code, expires_at)
-        VALUES (?, ?, ?, ?)
-    ''', (session['customer_id'], customer['email'], code, expires_at))
-    conn.commit()
-    
-    # Send verification email via Flask-Mail
-    if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
+    try:
+        conn = get_db_connection()
+        customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
+
+        if not customer:
+            conn.close()
+            flash('Customer not found. Please log in again.', 'error')
+            return redirect(url_for('customer_login'))
+
+        # Convert Row to dict if needed
+        if not isinstance(customer, dict):
+            customer = dict(customer)
+
+        customer_email = customer.get('email', '')
+        if not customer_email:
+            conn.close()
+            flash('Email address not found. Please contact support.', 'error')
+            return redirect(url_for('customer_profile'))
+
+        # Generate code
+        code = generate_verification_code()
+        expires_at = (datetime.now() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+
+        # Save verification code - ensure email_verifications table exists
         try:
-            subject = 'Email Verification Code - Cafe Next Door'
-            body = f'''
-Hello {customer['first_name']},
+            conn.execute('''
+                INSERT INTO email_verifications (customer_id, email, verification_code, expires_at)
+                VALUES (?, ?, ?, ?)
+            ''', (session['customer_id'], customer_email, code, expires_at))
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            # Table might not exist, but it should be created in init_database
+            print(f"Error inserting verification code: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            conn.close()
+            flash('Error saving verification code. Please try again.', 'error')
+            return redirect(url_for('verify_email'))
+
+        # Send verification email via Flask-Mail
+        if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
+            try:
+                subject = 'Email Verification Code - Cafe Next Door'
+                first_name = customer.get('first_name', 'Customer')
+                body = f'''
+Hello {first_name},
 
 Thank you for registering with Cafe Next Door!
 
@@ -3450,22 +3471,36 @@ If you didn't request this code, please ignore this email.
 Best regards,
 Cafe Next Door Team
 '''
-            msg = Message(
-                subject=subject,
-                recipients=[customer['email']],
-                body=body,
-                sender=app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
-            )
-            mail.send(msg)
-            flash('Verification code has been sent to your email address!', 'success')
-        except Exception as e:
-            print(f"Error sending verification email: {str(e)}")
-            flash(f'Error sending verification email: {str(e)}. Please try again later or contact support.', 'error')
-    else:
-        flash('Email service is not configured. Please set MAIL_USERNAME and MAIL_PASSWORD in your environment variables.', 'error')
-    
-    conn.close()
-    return redirect(url_for('verify_email'))
+                sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+                msg = Message(
+                    subject=subject,
+                    recipients=[customer_email],
+                    body=body,
+                    sender=sender
+                )
+                mail.send(msg)
+                print(f"Verification email sent successfully to {customer_email}")
+                flash('Verification code has been sent to your email address!', 'success')
+            except Exception as e:
+                import traceback
+                print(f"Error sending verification email: {str(e)}")
+                print(traceback.format_exc())
+                flash(f'Error sending verification email: {str(e)}. Please try again later or contact support.', 'error')
+        else:
+            flash('Email service is not configured. Please set MAIL_USERNAME and MAIL_PASSWORD in your environment variables.', 'error')
+        
+        conn.close()
+        return redirect(url_for('verify_email'))
+    except Exception as e:
+        import traceback
+        print(f"Error in send_verification_code: {str(e)}")
+        print(traceback.format_exc())
+        try:
+            conn.close()
+        except:
+            pass
+        flash(f'An error occurred: {str(e)}. Please try again.', 'error')
+        return redirect(url_for('verify_email'))
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():

@@ -1738,12 +1738,8 @@ def admin_login():
                 flash('Please enter both username and password.', 'error')
                 return render_template('login.html')
             
-            # Try to ensure database is initialized (silently fail if already initialized)
-            try:
-                init_database()
-            except Exception as init_error:
-                # Silently continue - database is likely already initialized
-                pass
+            # Note: Database initialization should happen at app startup, not on every login
+            # get_db_connection() will handle initialization if tables don't exist
             
             conn = None
             try:

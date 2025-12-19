@@ -1207,11 +1207,8 @@ def menu():
     """Menu page route - displays all menu items with search and filter."""
     conn = None
     try:
-        # Ensure database is initialized
-        try:
-            init_database()
-        except Exception as init_error:
-            print(f"Warning: Database initialization check failed: {str(init_error)}")
+        # Note: Database initialization should happen at app startup, not on every request
+        # Calling init_database() here would re-add deleted items from seed data
         
         search_query = request.args.get('search', '').strip()
         category_filter = request.args.get('category', '')
@@ -2132,8 +2129,9 @@ def admin_delete(item_id):
         item_name = item['name'] if isinstance(item, dict) else item[1]  # Get name for flash message
         
         # Delete related records first (to avoid foreign key constraints)
+        # Note: Some tables may have CASCADE DELETE, but we're being explicit for safety
         try:
-            # Delete from menu_item_ingredients (should cascade, but being explicit)
+            # Delete from menu_item_ingredients
             conn.execute('DELETE FROM menu_item_ingredients WHERE menu_item_id = ?', (item_id,))
         except Exception as e:
             print(f"Warning: Error deleting menu_item_ingredients: {e}")
@@ -2143,6 +2141,18 @@ def admin_delete(item_id):
             conn.execute('DELETE FROM favorites WHERE menu_item_id = ?', (item_id,))
         except Exception as e:
             print(f"Warning: Error deleting favorites: {e}")
+        
+        # Delete from reviews
+        try:
+            conn.execute('DELETE FROM reviews WHERE menu_item_id = ?', (item_id,))
+        except Exception as e:
+            print(f"Warning: Error deleting reviews: {e}")
+        
+        # Delete from order_items (if this table exists and has foreign key)
+        try:
+            conn.execute('DELETE FROM order_items WHERE menu_item_id = ?', (item_id,))
+        except Exception as e:
+            print(f"Warning: Error deleting order_items: {e}")
         
         # Delete the menu item
         conn.execute('DELETE FROM menu_items WHERE id = ?', (item_id,))

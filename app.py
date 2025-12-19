@@ -2313,24 +2313,19 @@ def customer_register():
         # Create account
         try:
             password_hash = generate_password_hash(password)
-            # Try to insert with email_verified column
+            
+            # Ensure email_verified column exists
             try:
-                conn.execute('''
-                    INSERT INTO customers (email, password_hash, first_name, last_name, phone, email_verified)
-                    VALUES (?, ?, ?, ?, ?, 0)
-                ''', (email, password_hash, first_name, last_name, phone))
-            except sqlite3.OperationalError as e:
-                # Column doesn't exist, add it first
-                if 'no such column: email_verified' in str(e).lower():
-                    print(f"Adding email_verified column: {str(e)}")
-                    conn.execute('ALTER TABLE customers ADD COLUMN email_verified INTEGER DEFAULT 0')
-                    # Now insert with email_verified (column now exists)
-                    conn.execute('''
-                        INSERT INTO customers (email, password_hash, first_name, last_name, phone, email_verified)
-                        VALUES (?, ?, ?, ?, ?, 0)
-                    ''', (email, password_hash, first_name, last_name, phone))
-                else:
-                    raise  # Re-raise if it's a different error
+                conn.execute('ALTER TABLE customers ADD COLUMN email_verified INTEGER DEFAULT 0')
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass  # Column already exists, that's fine
+            
+            # Insert customer
+            conn.execute('''
+                INSERT INTO customers (email, password_hash, first_name, last_name, phone, email_verified)
+                VALUES (?, ?, ?, ?, ?, 0)
+            ''', (email, password_hash, first_name, last_name, phone))
             
             # Get the new customer ID
             customer_id = conn.lastrowid

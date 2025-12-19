@@ -33,15 +33,14 @@ if not app.secret_key:
         raise ValueError("SECRET_KEY environment variable must be set in production!")
 
 # Email configuration - all from environment variables
-# ProtonMail Bridge configuration (for local development)
-# Bridge runs locally on 127.0.0.1:1025 with STARTTLS
-# For production, use direct SMTP or another email service
-app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', '127.0.0.1')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 1025))
-app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True').lower() in ['true', '1', 'yes']  # STARTTLS
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'cafenextdoor@protonmail.com')
+# Gmail SMTP configuration (default for production)
+# For local development with ProtonMail Bridge, override these in .env
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True').lower() in ['true', '1', 'yes']
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'cafenextdoor@protonmail.com')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', os.environ.get('MAIL_USERNAME', ''))
 app.config['CAFE_EMAIL'] = os.environ.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')
 
 # Initialize Flask-Mail

@@ -1131,29 +1131,38 @@ def send_order_notification(customer_id, order_id, status, conn=None):
         conn.commit()
         
         # Send email if enabled
-        if customer_dict.get('email_notifications', 1):
-            try:
-                msg = Message(
-                    subject=f'Order #{order_id} - {notification["title"]}',
-                    recipients=[customer_dict['email']],
-                    body=f'''Hello {customer_dict['first_name']},
+        if customer_dict.get('email_notifications', 1) and customer_dict.get('email'):
+            # Check if email service is configured
+            if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
+                try:
+                    sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+                    msg = Message(
+                        subject=f'Order #{order_id} - {notification["title"]}',
+                        recipients=[customer_dict['email']],
+                        body=f'''Hello {customer_dict.get('first_name', 'Customer')},
 
 {notification['message']}
 
 Order Details:
 - Order ID: #{order_id}
-- Total: P{order_dict["total_amount"]:.2f}
+- Total: P{order_dict.get("total_amount", 0):.2f}
 - Pickup Time: {pickup_time}
 
 Thank you for choosing Cafe Next Door!
 
 Best regards,
-Cafe Next Door Team'''
-                )
-                mail.send(msg)
-                print(f"Email notification sent to {customer_dict['email']} for order #{order_id}")
-            except Exception as e:
-                print(f"Error sending email notification: {e}")
+Cafe Next Door Team''',
+                        sender=sender
+                    )
+                    mail.send(msg)
+                    print(f"Email notification sent to {customer_dict['email']} for order #{order_id}")
+                except Exception as e:
+                    import traceback
+                    print(f"Error sending email notification: {str(e)}")
+                    print(traceback.format_exc())
+                    # Don't fail the notification - it's already saved to database
+            else:
+                print(f"Email service not configured. Skipping email notification for order #{order_id}")
         
         # SMS notification (simulated - store in session for popup)
         if customer_dict.get('sms_notifications', 1) and customer_dict.get('phone'):
@@ -1453,12 +1462,15 @@ def delete_duplicate_messages(email, message):
 def send_contact_email_to_cafe(name, email, message):
     """Send contact form submission to the cafe's email address."""
     # Only send email if MAIL_PASSWORD is configured
-    if not app.config['MAIL_PASSWORD']:
-        print("WARNING: MAIL_PASSWORD not configured. Email will not be sent.")
-        print("To enable email, set the MAIL_PASSWORD environment variable.")
-        return
+    if not app.config.get('MAIL_PASSWORD') or not app.config.get('MAIL_USERNAME'):
+        print("WARNING: MAIL_PASSWORD or MAIL_USERNAME not configured. Email will not be sent.")
+        print("To enable email, set the MAIL_PASSWORD and MAIL_USERNAME environment variables.")
+        return False
     
     try:
+        cafe_email = app.config.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')
+        sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+        
         subject = f'New Contact Message from {name} - Cafe Next Door'
         body = f'''
 A new message has been received through the Cafe Next Door contact form.
@@ -1477,16 +1489,21 @@ Please reply directly to {email} to respond to this inquiry.
         
         msg = Message(
             subject=subject,
-            recipients=[app.config['CAFE_EMAIL']],  # Send to cafe's email
+            recipients=[cafe_email],  # Send to cafe's email
             body=body,
+            sender=sender,
             reply_to=email  # Set reply-to to customer's email for easy response
         )
         
         mail.send(msg)
-        print(f"Email sent successfully to {app.config['CAFE_EMAIL']}")
+        print(f"Email sent successfully to {cafe_email}")
+        return True
     except Exception as e:
-        print(f"ERROR sending email: {str(e)}")
-        raise e
+        import traceback
+        print(f"ERROR sending contact email: {str(e)}")
+        print(traceback.format_exc())
+        # Don't raise - return False so the contact form can still succeed
+        return False
 
 @app.route('/contact', methods=['GET', 'POST'])
 def contact():
@@ -1535,12 +1552,10 @@ def contact():
             deleted_count = delete_duplicate_messages(email, message)
             
             # Send email to cafe
-            try:
-                send_contact_email_to_cafe(name, email, message)
-            except Exception as e:
-                # Log error but don't fail the request
-                print(f"Error sending email: {str(e)}")
+            email_sent = send_contact_email_to_cafe(name, email, message)
+            if not email_sent:
                 # Email sending failed, but message is still saved to database
+                print("Contact email not sent (service may not be configured), but message saved to database")
             
             if deleted_count > 0:
                 flash(f'Thank you, {name}! Your message has been received. {deleted_count} duplicate message(s) were automatically removed.', 'success')
@@ -2079,33 +2094,44 @@ def admin_delete_message(message_id):
 @login_required
 def admin_reply_message(message_id):
     """Admin route - reply to a contact message via email."""
-    conn = get_db_connection()
-    message = conn.execute('SELECT * FROM contact_messages WHERE id = ?', (message_id,)).fetchone()
-    
-    if not message:
-        conn.close()
-        flash('Message not found.', 'error')
-        return redirect(url_for('admin_messages'))
-    
-    if request.method == 'POST':
-        reply_message = request.form.get('reply_message', '').strip()
+    conn = None
+    try:
+        conn = get_db_connection()
+        message = conn.execute('SELECT * FROM contact_messages WHERE id = ?', (message_id,)).fetchone()
         
-        if not reply_message:
-            flash('Please enter a reply message.', 'error')
-            conn.close()
-            return render_template('admin_reply_message.html', message=dict(message))
+        if not message:
+            if conn:
+                conn.close()
+            flash('Message not found.', 'error')
+            return redirect(url_for('admin_messages'))
         
-        # Send reply email
-        if app.config['MAIL_PASSWORD']:
-            try:
-                subject = f'Re: Your message to Cafe Next Door'
-                body = f'''
-Dear {message['name']},
+        # Convert Row to dict if needed
+        if not isinstance(message, dict):
+            message = dict(message)
+        
+        if request.method == 'POST':
+            reply_message = request.form.get('reply_message', '').strip()
+            
+            if not reply_message:
+                flash('Please enter a reply message.', 'error')
+                if conn:
+                    conn.close()
+                return render_template('admin_reply_message.html', message=message)
+            
+            # Send reply email
+            if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
+                try:
+                    sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+                    cafe_email = app.config.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')
+                    
+                    subject = f'Re: Your message to Cafe Next Door'
+                    body = f'''
+Dear {message.get('name', 'Customer')},
 
 Thank you for contacting Cafe Next Door. We have received your message and are happy to respond.
 
 Your original message:
-{message['message']}
+{message.get('message', '')}
 
 ---
 Our Reply:
@@ -2116,34 +2142,49 @@ If you have any further questions, please don't hesitate to contact us again.
 
 Best regards,
 Cafe Next Door Team
-{app.config.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')}
+{cafe_email}
 '''
-                msg = Message(
-                    subject=subject,
-                    recipients=[message['email']],
-                    body=body,
-                    sender=app.config['MAIL_DEFAULT_SENDER'],
-                    reply_to=app.config.get('CAFE_EMAIL', app.config['MAIL_DEFAULT_SENDER'])
-                )
-                mail.send(msg)
-                print(f"Reply email sent to {message['email']}")
-                
-                # Mark message as replied
-                conn.execute('UPDATE contact_messages SET replied = 1 WHERE id = ?', (message_id,))
-                conn.commit()
-                
-                flash(f'Reply sent successfully to {message["name"]}!', 'success')
-            except Exception as e:
-                print(f"Error sending reply email: {str(e)}")
-                flash('Error sending reply email. Please try again or use the mailto link.', 'error')
-        else:
-            flash('Email service is not configured. Please configure MAIL_PASSWORD to send replies.', 'error')
+                    msg = Message(
+                        subject=subject,
+                        recipients=[message.get('email', '')],
+                        body=body,
+                        sender=sender,
+                        reply_to=cafe_email
+                    )
+                    mail.send(msg)
+                    print(f"Reply email sent to {message.get('email', '')}")
+                    
+                    # Mark message as replied
+                    conn.execute('UPDATE contact_messages SET replied = 1 WHERE id = ?', (message_id,))
+                    conn.commit()
+                    
+                    flash(f'Reply sent successfully to {message.get("name", "customer")}!', 'success')
+                except Exception as e:
+                    import traceback
+                    print(f"Error sending reply email: {str(e)}")
+                    print(traceback.format_exc())
+                    flash('Error sending reply email. Please try again or use the mailto link.', 'error')
+            else:
+                flash('Email service is not configured. Please configure MAIL_PASSWORD and MAIL_USERNAME to send replies.', 'error')
+            
+            if conn:
+                conn.close()
+            return redirect(url_for('admin_messages'))
         
-        conn.close()
+        if conn:
+            conn.close()
+        return render_template('admin_reply_message.html', message=message)
+    except Exception as e:
+        import traceback
+        print(f"Error in admin_reply_message: {str(e)}")
+        print(traceback.format_exc())
+        try:
+            if conn:
+                conn.close()
+        except:
+            pass
+        flash('An error occurred. Please try again.', 'error')
         return redirect(url_for('admin_messages'))
-    
-    conn.close()
-    return render_template('admin_reply_message.html', message=dict(message))
 
 # Customer authentication decorator
 def customer_login_required(f):
@@ -3564,41 +3605,47 @@ Cafe Next Door Team
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     """Request password reset."""
-    if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
-        
-        if not email:
-            flash('Please enter your email address.', 'error')
-            return render_template('forgot_password.html')
-        
-        conn = get_db_connection()
-        customer = conn.execute('SELECT * FROM customers WHERE email = ?', (email,)).fetchone()
-        
-        if customer:
-            # Generate secure token
-            token = secrets.token_urlsafe(32)
-            expires_at = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+    conn = None
+    try:
+        if request.method == 'POST':
+            email = request.form.get('email', '').strip().lower()
             
-            # Invalidate any existing tokens for this customer
-            conn.execute('UPDATE password_reset_tokens SET used = 1 WHERE customer_id = ? AND used = 0', (customer['id'],))
+            if not email:
+                flash('Please enter your email address.', 'error')
+                return render_template('forgot_password.html')
             
-            # Store token
-            conn.execute('''
-                INSERT INTO password_reset_tokens (customer_id, token, expires_at)
-                VALUES (?, ?, ?)
-            ''', (customer['id'], token, expires_at))
-            conn.commit()
-            conn.close()
+            conn = get_db_connection()
+            customer = conn.execute('SELECT * FROM customers WHERE email = ?', (email,)).fetchone()
             
-            # Generate reset link
-            reset_link = url_for('reset_password', token=token, _external=True)
+            if customer:
+                # Convert Row to dict if needed
+                if not isinstance(customer, dict):
+                    customer = dict(customer)
+                
+                # Generate secure token
+                token = secrets.token_urlsafe(32)
+                expires_at = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+                
+                # Invalidate any existing tokens for this customer
+                conn.execute('UPDATE password_reset_tokens SET used = 1 WHERE customer_id = ? AND used = 0', (customer['id'],))
+                
+                # Store token
+                conn.execute('''
+                    INSERT INTO password_reset_tokens (customer_id, token, expires_at)
+                    VALUES (?, ?, ?)
+                ''', (customer['id'], token, expires_at))
+                conn.commit()
+                
+                # Generate reset link
+                reset_link = url_for('reset_password', token=token, _external=True)
 
-            # Send password reset email via Flask-Mail
-            if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
-                try:
-                    subject = 'Password Reset Request - Cafe Next Door'
-                    body = f'''
-Hello {customer['first_name']},
+                # Send password reset email via Flask-Mail
+                if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
+                    try:
+                        sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+                        subject = 'Password Reset Request - Cafe Next Door'
+                        body = f'''
+Hello {customer.get('first_name', 'Customer')},
 
 You requested to reset your password for your Cafe Next Door account.
 
@@ -3612,83 +3659,123 @@ If you didn't request a password reset, please ignore this email. Your password 
 Best regards,
 Cafe Next Door Team
 '''
-                    msg = Message(
-                        subject=subject,
-                        recipients=[email],
-                        body=body,
-                        sender=app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
-                    )
-                    mail.send(msg)
-                    print(f"Password reset email sent to {email}")
-                except Exception as e:
-                    print(f"Error sending password reset email: {str(e)}")
-                    flash('Error sending password reset email. Please try again later or contact support.', 'error')
+                        msg = Message(
+                            subject=subject,
+                            recipients=[email],
+                            body=body,
+                            sender=sender
+                        )
+                        mail.send(msg)
+                        print(f"Password reset email sent to {email}")
+                    except Exception as e:
+                        import traceback
+                        print(f"Error sending password reset email: {str(e)}")
+                        print(traceback.format_exc())
+                        if conn:
+                            conn.close()
+                        flash('Error sending password reset email. Please try again later or contact support.', 'error')
+                        return render_template('forgot_password.html')
+                
+                if conn:
                     conn.close()
-                    return render_template('forgot_password.html')
-            
-            conn.close()
-            flash('If an account exists with that email, password reset instructions have been sent.', 'success')
-            return redirect(url_for('customer_login'))
-        else:
-            # Don't reveal if email exists - still show success message
-            conn.close()
-            flash('If an account exists with that email, password reset instructions have been sent.', 'success')
-            return redirect(url_for('customer_login'))
-    
-    return render_template('forgot_password.html')
+                flash('If an account exists with that email, password reset instructions have been sent.', 'success')
+                return redirect(url_for('customer_login'))
+            else:
+                # Don't reveal if email exists - still show success message
+                if conn:
+                    conn.close()
+                flash('If an account exists with that email, password reset instructions have been sent.', 'success')
+                return redirect(url_for('customer_login'))
+        
+        return render_template('forgot_password.html')
+    except Exception as e:
+        import traceback
+        print(f"Error in forgot_password: {str(e)}")
+        print(traceback.format_exc())
+        try:
+            if conn:
+                conn.close()
+        except:
+            pass
+        flash('An error occurred. Please try again.', 'error')
+        return render_template('forgot_password.html')
 
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     """Reset password with token."""
-    conn = get_db_connection()
-    
-    # Find valid token
-    reset_token = conn.execute('''
-        SELECT pt.*, c.email 
-        FROM password_reset_tokens pt
-        JOIN customers c ON pt.customer_id = c.id
-        WHERE pt.token = ? AND pt.used = 0 AND pt.expires_at > datetime('now')
-    ''', (token,)).fetchone()
-    
-    if not reset_token:
-        conn.close()
-        flash('Invalid or expired reset link. Please request a new one.', 'error')
+    conn = None
+    try:
+        conn = get_db_connection()
+        
+        # Find valid token
+        reset_token = conn.execute('''
+            SELECT pt.*, c.email 
+            FROM password_reset_tokens pt
+            JOIN customers c ON pt.customer_id = c.id
+            WHERE pt.token = ? AND pt.used = 0 AND pt.expires_at > datetime('now')
+        ''', (token,)).fetchone()
+        
+        if not reset_token:
+            if conn:
+                conn.close()
+            flash('Invalid or expired reset link. Please request a new one.', 'error')
+            return redirect(url_for('forgot_password'))
+        
+        # Convert Row to dict if needed
+        if not isinstance(reset_token, dict):
+            reset_token = dict(reset_token)
+        
+        if request.method == 'POST':
+            password = request.form.get('password')
+            confirm_password = request.form.get('confirm_password')
+            
+            if not password or not confirm_password:
+                flash('Please fill in all fields.', 'error')
+                if conn:
+                    conn.close()
+                return render_template('reset_password.html', token=token)
+            
+            if password != confirm_password:
+                flash('Passwords do not match.', 'error')
+                if conn:
+                    conn.close()
+                return render_template('reset_password.html', token=token)
+            
+            if len(password) < 6:
+                flash('Password must be at least 6 characters.', 'error')
+                if conn:
+                    conn.close()
+                return render_template('reset_password.html', token=token)
+            
+            # Update password
+            password_hash = generate_password_hash(password)
+            conn.execute('UPDATE customers SET password_hash = ? WHERE id = ?', 
+                        (password_hash, reset_token.get('customer_id')))
+            
+            # Mark token as used
+            conn.execute('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', (reset_token.get('id'),))
+            conn.commit()
+            
+            if conn:
+                conn.close()
+            
+            flash('Password reset successfully! You can now log in with your new password.', 'success')
+            return redirect(url_for('customer_login'))
+        
+        if conn:
+            conn.close()
+        return render_template('reset_password.html', token=token)
+    except Exception as e:
+        import traceback
+        print(f"Error in reset_password: {str(e)}")
+        print(traceback.format_exc())
+        try:
+            if conn:
+                conn.close()
+        except:
+            pass
+        flash('An error occurred. Please try again.', 'error')
         return redirect(url_for('forgot_password'))
-    
-    if request.method == 'POST':
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        
-        if not password or not confirm_password:
-            flash('Please fill in all fields.', 'error')
-            conn.close()
-            return render_template('reset_password.html', token=token)
-        
-        if password != confirm_password:
-            flash('Passwords do not match.', 'error')
-            conn.close()
-            return render_template('reset_password.html', token=token)
-        
-        if len(password) < 6:
-            flash('Password must be at least 6 characters.', 'error')
-            conn.close()
-            return render_template('reset_password.html', token=token)
-        
-        # Update password
-        password_hash = generate_password_hash(password)
-        conn.execute('UPDATE customers SET password_hash = ? WHERE id = ?', 
-                    (password_hash, reset_token['customer_id']))
-        
-        # Mark token as used
-        conn.execute('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', (reset_token['id'],))
-        conn.commit()
-        conn.close()
-        
-        flash('Password reset successfully! You can now log in with your new password.', 'success')
-        return redirect(url_for('customer_login'))
-    
-    conn.close()
-    return render_template('reset_password.html', token=token)
 
 # Favorites/Wishlist Routes
 @app.route('/favorites/add/<int:item_id>', methods=['POST'])
@@ -3737,59 +3824,117 @@ def view_favorites():
 @app.route('/newsletter/subscribe', methods=['POST'])
 def newsletter_subscribe():
     """Subscribe to newsletter."""
-    email = request.form.get('email', '').strip().lower()
-    name = request.form.get('name', '').strip()
-    honeypot = request.form.get('website_url', '')  # Honeypot field
-    
-    # Honeypot check
-    if honeypot:
-        flash('Subscription failed.', 'error')
-        return redirect(request.referrer or url_for('index'))
-    
-    # Validate email
-    if not email or '@' not in email or '.' not in email.split('@')[-1]:
-        flash('Please enter a valid email address.', 'error')
-        return redirect(request.referrer or url_for('index'))
-    
-    # Block common disposable email domains
-    disposable_domains = ['tempmail.com', 'throwaway.com', 'mailinator.com', 'guerrillamail.com', 
-                          'fakeinbox.com', '10minutemail.com', 'trashmail.com']
-    email_domain = email.split('@')[-1]
-    if email_domain in disposable_domains:
-        flash('Please use a valid email address.', 'error')
-        return redirect(request.referrer or url_for('index'))
-    
-    # Rate limiting - check IP
-    ip_address = get_client_ip()
-    conn = get_db_connection()
-    
-    # Check for recent subscriptions from this IP (max 2 per minute)
-    one_minute_ago = datetime.now() - timedelta(minutes=1)
-    recent_subs = conn.execute('''
-        SELECT COUNT(*) FROM newsletter_subscribers 
-        WHERE created_at > ? AND id IN (
-            SELECT MAX(id) FROM newsletter_subscribers GROUP BY email
-        )
-    ''', (one_minute_ago.strftime('%Y-%m-%d %H:%M:%S'),)).fetchone()[0]
-    
-    # Simple rate limit using session
-    last_sub_time = session.get('last_newsletter_sub')
-    if last_sub_time:
-        time_diff = datetime.now() - datetime.fromisoformat(last_sub_time)
-        if time_diff.total_seconds() < 10:
-            conn.close()
-            flash('Please wait a moment before subscribing again.', 'error')
-            return redirect(request.referrer or url_for('index'))
-    
+    conn = None
     try:
-        conn.execute('INSERT INTO newsletter_subscribers (email, name) VALUES (?, ?)', (email, name or None))
-        conn.commit()
-        session['last_newsletter_sub'] = datetime.now().isoformat()
-        flash('Successfully subscribed to our newsletter!', 'success')
-    except sqlite3.IntegrityError:
-        flash('This email is already subscribed.', 'error')
-    conn.close()
-    return redirect(request.referrer or url_for('index'))
+        email = request.form.get('email', '').strip().lower()
+        name = request.form.get('name', '').strip()
+        honeypot = request.form.get('website_url', '')  # Honeypot field
+        
+        # Honeypot check
+        if honeypot:
+            flash('Subscription failed.', 'error')
+            return redirect(request.referrer or url_for('index'))
+        
+        # Validate email
+        if not email or '@' not in email or '.' not in email.split('@')[-1]:
+            flash('Please enter a valid email address.', 'error')
+            return redirect(request.referrer or url_for('index'))
+        
+        # Block common disposable email domains
+        disposable_domains = ['tempmail.com', 'throwaway.com', 'mailinator.com', 'guerrillamail.com', 
+                              'fakeinbox.com', '10minutemail.com', 'trashmail.com']
+        email_domain = email.split('@')[-1]
+        if email_domain in disposable_domains:
+            flash('Please use a valid email address.', 'error')
+            return redirect(request.referrer or url_for('index'))
+        
+        # Rate limiting - check IP
+        ip_address = get_client_ip()
+        conn = get_db_connection()
+        
+        # Check for recent subscriptions from this IP (max 2 per minute)
+        one_minute_ago = datetime.now() - timedelta(minutes=1)
+        recent_subs = conn.execute('''
+            SELECT COUNT(*) FROM newsletter_subscribers 
+            WHERE created_at > ? AND id IN (
+                SELECT MAX(id) FROM newsletter_subscribers GROUP BY email
+            )
+        ''', (one_minute_ago.strftime('%Y-%m-%d %H:%M:%S'),)).fetchone()[0]
+        
+        # Simple rate limit using session
+        last_sub_time = session.get('last_newsletter_sub')
+        if last_sub_time:
+            time_diff = datetime.now() - datetime.fromisoformat(last_sub_time)
+            if time_diff.total_seconds() < 10:
+                if conn:
+                    conn.close()
+                flash('Please wait a moment before subscribing again.', 'error')
+                return redirect(request.referrer or url_for('index'))
+        
+        try:
+            conn.execute('INSERT INTO newsletter_subscribers (email, name) VALUES (?, ?)', (email, name or None))
+            conn.commit()
+            session['last_newsletter_sub'] = datetime.now().isoformat()
+            
+            # Send confirmation email
+            if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
+                try:
+                    sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+                    cafe_email = app.config.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')
+                    
+                    subject = 'Welcome to Cafe Next Door Newsletter!'
+                    body = f'''
+Hello {name or 'there'},
+
+Thank you for subscribing to the Cafe Next Door newsletter!
+
+You'll now receive updates about:
+- New menu items and seasonal specials
+- Exclusive promotions and discounts
+- Events and happenings at the cafe
+- Tips and stories from our team
+
+We're excited to share our coffee journey with you!
+
+If you didn't subscribe to our newsletter, please ignore this email.
+
+To unsubscribe, please contact us at {cafe_email}.
+
+Best regards,
+Cafe Next Door Team
+'''
+                    msg = Message(
+                        subject=subject,
+                        recipients=[email],
+                        body=body,
+                        sender=sender
+                    )
+                    mail.send(msg)
+                    print(f"Newsletter confirmation email sent to {email}")
+                except Exception as e:
+                    import traceback
+                    print(f"Error sending newsletter confirmation email: {str(e)}")
+                    print(traceback.format_exc())
+                    # Don't fail the subscription if email fails
+            
+            flash('Successfully subscribed to our newsletter!', 'success')
+        except sqlite3.IntegrityError:
+            flash('This email is already subscribed.', 'error')
+        
+        if conn:
+            conn.close()
+        return redirect(request.referrer or url_for('index'))
+    except Exception as e:
+        import traceback
+        print(f"Error in newsletter_subscribe: {str(e)}")
+        print(traceback.format_exc())
+        try:
+            if conn:
+                conn.close()
+        except:
+            pass
+        flash('An error occurred during subscription. Please try again.', 'error')
+        return redirect(request.referrer or url_for('index'))
 
 @app.route('/admin/newsletter')
 @login_required

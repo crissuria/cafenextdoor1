@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Categories - Cafe Next Door{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="page-title">Manage Categories</h1>
+        <p class="page-subtitle">Add, view, and manage menu item categories</p>
+    </div>
+</div>
+
+<div class="admin-section">
+    <div class="container">
+        <!-- Add New Category Form -->
+        <div class="admin-form-container" style="margin-bottom: 3rem;">
+            <h2 style="margin-bottom: 1.5rem; font-size: 1.5rem; color: #2a1810; font-weight: 600;">Add New Category</h2>
+            <form method="POST" action="{{ url_for('admin_add_category') }}" class="admin-form">
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label for="category_name">Category Name *</label>
+                        <input type="text" id="category_name" name="category_name" required placeholder="e.g., Beverages, Snacks" style="text-transform: capitalize;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0; display: flex; flex-direction: column; justify-content: flex-end;">
+                        <label style="visibility: hidden; margin-bottom: 0.5rem;">Button</label>
+                        <button type="submit" class="btn btn-primary" style="white-space: nowrap;">Add Category</button>
+                    </div>
+                </div>
+                <small style="display: block; margin-top: 0.5rem; color: #666;">
+                    Note: Categories are created automatically when you add a menu item with that category name.
+                </small>
+            </form>
+        </div>
+
+        <!-- Categories List -->
+        <div class="admin-form-container">
+            <h2 style="margin-bottom: 1.5rem; font-size: 1.5rem; color: #2a1810; font-weight: 600;">Existing Categories</h2>
+            {% if categories %}
+            <div class="admin-menu-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Category Name</th>
+                            <th style="text-align: center;">Menu Items</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for category in categories %}
+                        <tr>
+                            <td><strong>{{ category.category }}</strong></td>
+                            <td style="text-align: center;">
+                                <span class="role-badge" style="background-color: #4CAF50;">{{ category.item_count }} item(s)</span>
+                            </td>
+                            <td style="text-align: right;">
+                                {% if category.item_count > 0 %}
+                                <form method="POST" action="{{ url_for('admin_delete_category', category_name=category.category) }}" 
+                                      style="display: inline;" 
+                                      onsubmit="return confirm('Are you sure you want to delete this category? All {{ category.item_count }} item(s) will be moved to \"Uncategorized\".');">
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                </form>
+                                {% else %}
+                                <span style="color: #999;">No items</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div style="text-align: center; padding: 3rem; color: #666; background: #f9f9f9; border-radius: 10px; border: 1px solid #e5e5e5;">
+                <p style="margin: 0; font-size: 1rem;">No categories found. Add a menu item to create categories.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="admin-form-container">
+            <div class="form-actions" style="margin-top: 0; padding-top: 2rem; border-top: 2px solid #e5e5e5; justify-content: flex-start;">
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+                <a href="{{ url_for('admin_menu') }}" class="btn btn-secondary">View Menu Items</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

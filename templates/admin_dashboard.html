@@ -59,6 +59,14 @@
                 <p>Add a new item to the menu</p>
             </a>
             
+            <a href="{{ url_for('admin_categories') }}" class="admin-card">
+                <div class="admin-card-icon">
+                    <img src="{{ url_for('static', filename='images/icon_manage.png') }}" alt="Manage Categories">
+                </div>
+                <h3>Manage Categories</h3>
+                <p>Add, view, and manage menu categories</p>
+            </a>
+            
             <a href="{{ url_for('admin_promotions') }}" class="admin-card">
                 <div class="admin-card-icon">
                     <img src="{{ url_for('static', filename='images/icons8-promo-80.png') }}" alt="Promotions">

@@ -33,13 +33,16 @@ if not app.secret_key:
         raise ValueError("SECRET_KEY environment variable must be set in production!")
 
 # Email configuration - all from environment variables
-app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True').lower() in ['true', '1', 'yes']
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
+# ProtonMail Bridge configuration (for local development)
+# Bridge runs locally on 127.0.0.1:1025 with STARTTLS
+# For production, use direct SMTP or another email service
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', '127.0.0.1')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 1025))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True').lower() in ['true', '1', 'yes']  # STARTTLS
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'cafenextdoor@protonmail.com')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', os.environ.get('MAIL_USERNAME', ''))
-app.config['CAFE_EMAIL'] = os.environ.get('CAFE_EMAIL', os.environ.get('MAIL_USERNAME', ''))
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'cafenextdoor@protonmail.com')
+app.config['CAFE_EMAIL'] = os.environ.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')
 
 # Initialize Flask-Mail
 mail = Mail(app)
@@ -160,7 +163,21 @@ def init_database():
         )
     ''')
     
-    # Create phone_verifications table
+    # Create email_verifications table (replacing phone_verifications)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS email_verifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            verification_code TEXT NOT NULL,
+            is_verified INTEGER DEFAULT 0,
+            expires_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (customer_id) REFERENCES customers (id)
+        )
+    ''')
+    
+    # Keep phone_verifications for backward compatibility (will be deprecated)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS phone_verifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -285,10 +302,20 @@ def init_database():
         cursor.execute('ALTER TABLE contact_messages ADD COLUMN archived INTEGER DEFAULT 0')
     except sqlite3.OperationalError:
         pass  # Column already exists
+    try:
+        cursor.execute('ALTER TABLE contact_messages ADD COLUMN replied INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     
     # Add ip_address column if it doesn't exist (for existing databases)
     try:
         cursor.execute('ALTER TABLE contact_messages ADD COLUMN ip_address TEXT')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    # Add name column to newsletter_subscribers if it doesn't exist (for existing databases)
+    try:
+        cursor.execute('ALTER TABLE newsletter_subscribers ADD COLUMN name TEXT')
     except sqlite3.OperationalError:
         pass  # Column already exists
     
@@ -1323,11 +1350,39 @@ def check_blacklist(customer_id=None, email=None, phone=None):
     return dict(result) if result else None
 
 def is_phone_verified(customer_id):
-    """Check if customer's phone is verified."""
+    """Check if customer's phone is verified (deprecated - use is_email_verified)."""
     conn = get_db_connection()
     customer = conn.execute('SELECT phone_verified FROM customers WHERE id = ?', (customer_id,)).fetchone()
     conn.close()
     return customer and customer['phone_verified'] == 1
+
+def is_email_verified(customer_id):
+    """Check if customer's email is verified."""
+    try:
+        conn = get_db_connection()
+        # Try to get email_verified column, if it doesn't exist, check all columns
+        try:
+            customer = conn.execute('SELECT email_verified FROM customers WHERE id = ?', (customer_id,)).fetchone()
+        except sqlite3.OperationalError:
+            # Column doesn't exist, get all columns and check
+            customer = conn.execute('SELECT * FROM customers WHERE id = ?', (customer_id,)).fetchone()
+        
+        conn.close()
+        
+        if not customer:
+            return False
+        
+        # Convert Row to dict if needed
+        if not isinstance(customer, dict):
+            customer = dict(customer)
+        
+        # Check if email_verified column exists and is set to 1
+        email_verified = customer.get('email_verified', 0)
+        return email_verified == 1
+    except Exception as e:
+        print(f"Error checking email verification: {str(e)}")
+        # If there's an error, assume not verified to be safe
+        return False
 
 def check_rate_limit(ip_address, email, message):
     """Check if the user has exceeded rate limits."""
@@ -1700,13 +1755,23 @@ def admin_add():
         # Validate form data
         if not name or not price or not category:
             flash('Please fill in all required fields (name, price, category).', 'error')
-            return render_template('admin_add.html')
+            conn = get_db_connection()
+            categories_rows = conn.execute('SELECT DISTINCT category FROM menu_items ORDER BY category').fetchall()
+            all_categories = [row['category'] for row in categories_rows]
+            ingredients = conn.execute('SELECT * FROM ingredients WHERE is_active = 1 ORDER BY name').fetchall()
+            conn.close()
+            return render_template('admin_add.html', all_categories=all_categories, ingredients=[dict(i) for i in ingredients])
         
         try:
             price = float(price)
         except ValueError:
             flash('Please enter a valid price.', 'error')
-            return render_template('admin_add.html')
+            conn = get_db_connection()
+            categories_rows = conn.execute('SELECT DISTINCT category FROM menu_items ORDER BY category').fetchall()
+            all_categories = [row['category'] for row in categories_rows]
+            ingredients = conn.execute('SELECT * FROM ingredients WHERE is_active = 1 ORDER BY name').fetchall()
+            conn.close()
+            return render_template('admin_add.html', all_categories=all_categories, ingredients=[dict(i) for i in ingredients])
         
         # Handle file upload
         if 'image_file' in request.files:
@@ -1767,9 +1832,14 @@ def admin_add():
     ingredients = conn.execute('''
         SELECT * FROM ingredients WHERE is_active = 1 ORDER BY name
     ''').fetchall()
+    
+    # Fetch all distinct categories from menu items
+    categories_rows = conn.execute('SELECT DISTINCT category FROM menu_items ORDER BY category').fetchall()
+    all_categories = [row['category'] for row in categories_rows]
+    
     conn.close()
     
-    return render_template('admin_add.html', ingredients=[dict(i) for i in ingredients])
+    return render_template('admin_add.html', ingredients=[dict(i) for i in ingredients], all_categories=all_categories)
 
 @app.route('/admin/edit/<int:item_id>', methods=['GET', 'POST'])
 @manager_required
@@ -1788,16 +1858,20 @@ def admin_edit(item_id):
         if not name or not price or not category:
             flash('Please fill in all required fields (name, price, category).', 'error')
             item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
+            categories_rows = conn.execute('SELECT DISTINCT category FROM menu_items ORDER BY category').fetchall()
+            all_categories = [row['category'] for row in categories_rows]
             conn.close()
-            return render_template('admin_edit.html', item=dict(item))
+            return render_template('admin_edit.html', item=dict(item), all_categories=all_categories)
         
         try:
             price = float(price)
         except ValueError:
             flash('Please enter a valid price.', 'error')
             item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
+            categories_rows = conn.execute('SELECT DISTINCT category FROM menu_items ORDER BY category').fetchall()
+            all_categories = [row['category'] for row in categories_rows]
             conn.close()
-            return render_template('admin_edit.html', item=dict(item))
+            return render_template('admin_edit.html', item=dict(item), all_categories=all_categories)
         
         # Handle file upload
         if 'image_file' in request.files:
@@ -1876,12 +1950,17 @@ def admin_edit(item_id):
     # Create a dict for easy lookup
     linked_dict = {row['ingredient_id']: row['quantity_required'] for row in linked_ingredients}
     
+    # Fetch all distinct categories from menu items
+    categories_rows = conn.execute('SELECT DISTINCT category FROM menu_items ORDER BY category').fetchall()
+    all_categories = [row['category'] for row in categories_rows]
+    
     conn.close()
     
     return render_template('admin_edit.html', 
                          item=dict(item),
                          ingredients=[dict(i) for i in ingredients],
-                         linked_ingredients=linked_dict)
+                         linked_ingredients=linked_dict,
+                         all_categories=all_categories)
 
 @app.route('/admin/delete/<int:item_id>', methods=['POST'])
 @manager_required
@@ -1982,16 +2061,86 @@ def admin_delete_message(message_id):
     """Admin route - deletes a contact message."""
     conn = get_db_connection()
     message = conn.execute('SELECT * FROM contact_messages WHERE id = ?', (message_id,)).fetchone()
-    
+
     if message:
         conn.execute('DELETE FROM contact_messages WHERE id = ?', (message_id,))
         conn.commit()
         flash(f'Message from {message["name"]} has been deleted successfully!', 'success')
     else:
         flash('Message not found.', 'error')
-    
+
     conn.close()
     return redirect(request.referrer or url_for('admin_messages'))
+
+@app.route('/admin/messages/reply/<int:message_id>', methods=['GET', 'POST'])
+@login_required
+def admin_reply_message(message_id):
+    """Admin route - reply to a contact message via email."""
+    conn = get_db_connection()
+    message = conn.execute('SELECT * FROM contact_messages WHERE id = ?', (message_id,)).fetchone()
+    
+    if not message:
+        conn.close()
+        flash('Message not found.', 'error')
+        return redirect(url_for('admin_messages'))
+    
+    if request.method == 'POST':
+        reply_message = request.form.get('reply_message', '').strip()
+        
+        if not reply_message:
+            flash('Please enter a reply message.', 'error')
+            conn.close()
+            return render_template('admin_reply_message.html', message=dict(message))
+        
+        # Send reply email
+        if app.config['MAIL_PASSWORD']:
+            try:
+                subject = f'Re: Your message to Cafe Next Door'
+                body = f'''
+Dear {message['name']},
+
+Thank you for contacting Cafe Next Door. We have received your message and are happy to respond.
+
+Your original message:
+{message['message']}
+
+---
+Our Reply:
+{reply_message}
+
+---
+If you have any further questions, please don't hesitate to contact us again.
+
+Best regards,
+Cafe Next Door Team
+{app.config.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')}
+'''
+                msg = Message(
+                    subject=subject,
+                    recipients=[message['email']],
+                    body=body,
+                    sender=app.config['MAIL_DEFAULT_SENDER'],
+                    reply_to=app.config.get('CAFE_EMAIL', app.config['MAIL_DEFAULT_SENDER'])
+                )
+                mail.send(msg)
+                print(f"Reply email sent to {message['email']}")
+                
+                # Mark message as replied
+                conn.execute('UPDATE contact_messages SET replied = 1 WHERE id = ?', (message_id,))
+                conn.commit()
+                
+                flash(f'Reply sent successfully to {message["name"]}!', 'success')
+            except Exception as e:
+                print(f"Error sending reply email: {str(e)}")
+                flash('Error sending reply email. Please try again or use the mailto link.', 'error')
+        else:
+            flash('Email service is not configured. Please configure MAIL_PASSWORD to send replies.', 'error')
+        
+        conn.close()
+        return redirect(url_for('admin_messages'))
+    
+    conn.close()
+    return render_template('admin_reply_message.html', message=dict(message))
 
 # Customer authentication decorator
 def customer_login_required(f):
@@ -2038,13 +2187,13 @@ def customer_register():
         # Create account
         password_hash = generate_password_hash(password)
         conn.execute('''
-            INSERT INTO customers (email, password_hash, first_name, last_name, phone)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO customers (email, password_hash, first_name, last_name, phone, email_verified)
+            VALUES (?, ?, ?, ?, ?, 0)
         ''', (email, password_hash, first_name, last_name, phone))
         conn.commit()
         conn.close()
         
-        flash('Account created successfully! Please log in.', 'success')
+        flash('Account created successfully! Please log in and verify your email address.', 'success')
         return redirect(url_for('customer_login'))
     
     return render_template('customer_register.html')
@@ -2096,6 +2245,7 @@ def edit_profile():
     customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
     
     if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
         phone = request.form.get('phone', '').strip()
         first_name = request.form.get('first_name', '').strip()
         last_name = request.form.get('last_name', '').strip()
@@ -2105,25 +2255,30 @@ def edit_profile():
             conn.close()
             return render_template('edit_profile.html', customer=dict(customer))
         
+        if not email or '@' not in email:
+            flash('Please enter a valid email address.', 'error')
+            conn.close()
+            return render_template('edit_profile.html', customer=dict(customer))
+        
         if not phone:
             flash('Phone number is required.', 'error')
             conn.close()
             return render_template('edit_profile.html', customer=dict(customer))
         
-        # If phone changed, reset verification
-        phone_changed = phone != customer['phone']
-        phone_verified = 0 if phone_changed else customer['phone_verified']
-        
+        # If email changed, reset verification
+        email_changed = email != customer['email']
+        email_verified = 0 if email_changed else customer.get('email_verified', 0)
+
         conn.execute('''
-            UPDATE customers SET phone = ?, first_name = ?, last_name = ?, phone_verified = ?
+            UPDATE customers SET email = ?, phone = ?, first_name = ?, last_name = ?, email_verified = ?
             WHERE id = ?
-        ''', (phone, first_name, last_name, phone_verified, session['customer_id']))
+        ''', (email, phone, first_name, last_name, email_verified, session['customer_id']))
         conn.commit()
         conn.close()
-        
-        if phone_changed:
-            flash('Profile updated! Please verify your new phone number.', 'success')
-            return redirect(url_for('verify_phone'))
+
+        if email_changed:
+            flash('Profile updated! Please verify your new email address.', 'success')
+            return redirect(url_for('verify_email'))
         else:
             flash('Profile updated successfully!', 'success')
             return redirect(url_for('customer_profile'))
@@ -2452,31 +2607,61 @@ def checkout():
     conn = get_db_connection()
     customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
     
-    # Check if customer is blacklisted
-    blacklist_check = check_blacklist(customer_id=session['customer_id'], email=customer['email'], phone=customer['phone'])
-    if blacklist_check:
+    if not customer:
         conn.close()
-        flash('Your account has been restricted. Please contact customer service.', 'error')
-        return redirect(url_for('customer_profile'))
+        flash('Customer not found. Please log in again.', 'error')
+        return redirect(url_for('customer_login'))
     
-    # Check phone verification
-    if not is_phone_verified(session['customer_id']):
-        conn.close()
-        flash('Please verify your phone number before placing an order.', 'error')
-        return redirect(url_for('verify_phone'))
+    # Convert Row to dict if needed
+    if not isinstance(customer, dict):
+        customer = dict(customer)
+    
+    # Check if customer is blacklisted
+    try:
+        blacklist_check = check_blacklist(customer_id=session['customer_id'], email=customer.get('email', ''), phone=customer.get('phone', ''))
+        if blacklist_check:
+            conn.close()
+            flash('Your account has been restricted. Please contact customer service.', 'error')
+            return redirect(url_for('customer_profile'))
+    except Exception as e:
+        print(f"Error checking blacklist: {str(e)}")
+        # Continue if blacklist check fails
+    
+    # Check email verification
+    try:
+        if not is_email_verified(session['customer_id']):
+            conn.close()
+            flash('Please verify your email address before placing an order.', 'error')
+            return redirect(url_for('verify_email'))
+    except Exception as e:
+        print(f"Error checking email verification: {str(e)}")
+        # If verification check fails, allow checkout but log the error
+        # You might want to change this to block checkout if verification is critical
     
     # Get cart items with details
     cart_items = []
     total = 0
     
-    for item in cart:
-        menu_item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item['id'],)).fetchone()
-        if menu_item:
-            cart_item = dict(menu_item)
-            cart_item['quantity'] = item['quantity']
-            cart_item['subtotal'] = menu_item['price'] * item['quantity']
-            cart_items.append(cart_item)
-            total += cart_item['subtotal']
+    try:
+        for item in cart:
+            menu_item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item.get('id'),)).fetchone()
+            if menu_item:
+                # Convert Row to dict if needed
+                if not isinstance(menu_item, dict):
+                    menu_item = dict(menu_item)
+                
+                cart_item = menu_item.copy()
+                cart_item['quantity'] = item.get('quantity', 1)
+                cart_item['subtotal'] = float(menu_item.get('price', 0)) * cart_item['quantity']
+                cart_items.append(cart_item)
+                total += cart_item['subtotal']
+    except Exception as e:
+        print(f"Error processing cart items: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        conn.close()
+        flash('Error loading cart items. Please try again.', 'error')
+        return redirect(url_for('view_cart'))
     
     # Get customer's gift cards
     gift_cards = conn.execute('''
@@ -2497,18 +2682,18 @@ def checkout():
         if not pickup_time:
             flash('Please select a pickup time.', 'error')
             conn.close()
-            return render_template('checkout.html', cart_items=cart_items, total=total, customer=dict(customer), gift_cards=[dict(gc) for gc in gift_cards])
+            return render_template('checkout.html', cart_items=cart_items, total=total, customer=customer, gift_cards=gift_cards)
         
         if not payment_method and not use_gift_card:
             flash('Please select a payment method.', 'error')
             conn.close()
-            return render_template('checkout.html', cart_items=cart_items, total=total, customer=dict(customer), gift_cards=[dict(gc) for gc in gift_cards])
+            return render_template('checkout.html', cart_items=cart_items, total=total, customer=customer, gift_cards=gift_cards)
         
         # Require payment proof for non-cash payments (if not using gift card)
         if payment_method and payment_method != 'Cash' and not payment_proof and not use_gift_card:
             flash('Please provide proof of payment (transaction ID, screenshot, etc.).', 'error')
             conn.close()
-            return render_template('checkout.html', cart_items=cart_items, total=total, customer=dict(customer), gift_cards=[dict(gc) for gc in gift_cards])
+            return render_template('checkout.html', cart_items=cart_items, total=total, customer=customer, gift_cards=gift_cards)
         
         # Calculate discount if promo code applied
         discount_amount = 0
@@ -2551,12 +2736,12 @@ def checkout():
             if not payment_method:
                 flash('Gift card balance is insufficient. Please select an additional payment method.', 'error')
                 conn.close()
-                return render_template('checkout.html', cart_items=cart_items, total=total, customer=dict(customer), gift_cards=[dict(gc) for gc in gift_cards])
+                return render_template('checkout.html', cart_items=cart_items, total=total, customer=customer, gift_cards=gift_cards)
             # Require payment proof for non-cash payments
             if payment_method != 'Cash' and not payment_proof:
                 flash('Please provide proof of payment (transaction ID, screenshot, etc.).', 'error')
                 conn.close()
-                return render_template('checkout.html', cart_items=cart_items, total=total, customer=dict(customer), gift_cards=[dict(gc) for gc in gift_cards])
+                return render_template('checkout.html', cart_items=cart_items, total=total, customer=customer, gift_cards=gift_cards)
         elif final_total == 0 and gift_card_amount > 0:
             # Fully paid with gift card - no additional payment needed
             payment_method = 'Gift Card'
@@ -2629,7 +2814,7 @@ def checkout():
         return redirect(url_for('order_confirmation', order_id=order_id))
     
     conn.close()
-    return render_template('checkout.html', cart_items=cart_items, total=total, customer=dict(customer), gift_cards=[dict(gc) for gc in gift_cards])
+    return render_template('checkout.html', cart_items=cart_items, total=total, customer=customer, gift_cards=gift_cards)
 
 @app.route('/order/<int:order_id>')
 @customer_login_required
@@ -3096,79 +3281,118 @@ def loyalty_program():
     return render_template('loyalty.html', points=dict(points), transactions=[dict(t) for t in transactions])
 
 # Password Reset Routes
-# Phone Verification Routes
-@app.route('/verify-phone', methods=['GET', 'POST'])
+# Email Verification Routes
+@app.route('/verify-email', methods=['GET', 'POST'], endpoint='verify_email')
 @customer_login_required
-def verify_phone():
-    """Phone verification page."""
+def verify_email():
+    """Email verification page."""
     conn = get_db_connection()
     customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
     
-    if not customer['phone']:
+    if not customer['email']:
         conn.close()
-        flash('Please add a phone number to your profile first.', 'error')
-        return redirect(url_for('edit_profile'))
+        flash('Email address not found. Please contact support.', 'error')
+        return redirect(url_for('customer_profile'))
     
-    if customer['phone_verified']:
+    # Check if email_verified column exists
+    try:
+        # Try to access email_verified column
+        email_verified = customer.get('email_verified', 0) if customer else 0
+        # If column doesn't exist, the get will return None, so convert to 0
+        if email_verified is None:
+            email_verified = 0
+    except (KeyError, AttributeError, TypeError):
+        # Column doesn't exist in database yet
+        email_verified = 0
+    
+    if email_verified == 1:
         conn.close()
-        flash('Your phone is already verified.', 'success')
+        flash('Your email is already verified.', 'success')
         return redirect(url_for('customer_profile'))
     
     if request.method == 'POST':
-        code = request.form.get('verification_code', '').strip()
-        
-        if not code:
-            flash('Please enter the verification code.', 'error')
-            conn.close()
-            verification_code = session.pop('verification_code', None)
-            return render_template('verify_phone.html', customer=dict(customer), verification_code=verification_code)
-        
-        # Check verification code
-        verification = conn.execute('''
-            SELECT * FROM phone_verifications 
-            WHERE customer_id = ? AND verification_code = ? AND is_verified = 0
-            ORDER BY created_at DESC LIMIT 1
-        ''', (session['customer_id'], code)).fetchone()
-        
-        if verification:
-            # Check if code is expired (15 minutes)
-            expires_at = datetime.strptime(verification['expires_at'], '%Y-%m-%d %H:%M:%S')
-            if datetime.now() > expires_at:
+        try:
+            code = request.form.get('verification_code', '').strip()
+            
+            if not code:
+                flash('Please enter the verification code.', 'error')
                 conn.close()
-                flash('Verification code has expired. Please request a new one.', 'error')
-                verification_code = session.pop('verification_code', None)
-                return render_template('verify_phone.html', customer=dict(customer), verification_code=verification_code)
+                return render_template('verify_email.html', customer=dict(customer))
             
-            # Mark as verified
-            conn.execute('UPDATE phone_verifications SET is_verified = 1 WHERE id = ?', (verification['id'],))
-            conn.execute('UPDATE customers SET phone_verified = 1 WHERE id = ?', (session['customer_id'],))
-            conn.commit()
-            conn.close()
+            # Check verification code
+            verification = conn.execute('''
+                SELECT * FROM email_verifications 
+                WHERE customer_id = ? AND verification_code = ? AND is_verified = 0
+                ORDER BY created_at DESC LIMIT 1
+            ''', (session['customer_id'], code)).fetchone()
             
-            session.pop('verification_code', None)
-            flash('Phone number verified successfully!', 'success')
-            return redirect(url_for('customer_profile'))
-        else:
+            if verification:
+                # Convert Row to dict if needed
+                if not isinstance(verification, dict):
+                    verification = dict(verification)
+                
+                # Check if code is expired (15 minutes)
+                try:
+                    if verification.get('expires_at'):
+                        expires_at = datetime.strptime(verification['expires_at'], '%Y-%m-%d %H:%M:%S')
+                        if datetime.now() > expires_at:
+                            conn.close()
+                            flash('Verification code has expired. Please request a new one.', 'error')
+                            return render_template('verify_email.html', customer=dict(customer))
+                except (ValueError, TypeError) as e:
+                    print(f"Error parsing expiration date: {str(e)}")
+                    # If we can't parse the date, assume it's valid and proceed
+                
+                # Mark as verified
+                try:
+                    conn.execute('UPDATE email_verifications SET is_verified = 1 WHERE id = ?', (verification['id'],))
+                    
+                    # Check if email_verified column exists, if not add it
+                    try:
+                        conn.execute('UPDATE customers SET email_verified = 1 WHERE id = ?', (session['customer_id'],))
+                    except sqlite3.OperationalError as e:
+                        # Column doesn't exist, add it
+                        print(f"Adding email_verified column: {str(e)}")
+                        conn.execute('ALTER TABLE customers ADD COLUMN email_verified INTEGER DEFAULT 0')
+                        conn.execute('UPDATE customers SET email_verified = 1 WHERE id = ?', (session['customer_id'],))
+                    
+                    conn.commit()
+                    conn.close()
+                    
+                    flash('Email address verified successfully!', 'success')
+                    return redirect(url_for('customer_profile'))
+                except Exception as e:
+                    import traceback
+                    print(f"Error updating verification status: {str(e)}")
+                    print(traceback.format_exc())
+                    conn.close()
+                    flash(f'Error verifying email: {str(e)}. Please try again or contact support.', 'error')
+                    return render_template('verify_email.html', customer=dict(customer))
+            else:
+                conn.close()
+                flash('Invalid verification code. Please try again.', 'error')
+                return render_template('verify_email.html', customer=dict(customer))
+        except Exception as e:
+            import traceback
+            print(f"Error in verify_email POST: {str(e)}")
+            print(traceback.format_exc())
             conn.close()
-            flash('Invalid verification code. Please try again.', 'error')
-            verification_code = session.pop('verification_code', None)
-            return render_template('verify_phone.html', customer=dict(customer), verification_code=verification_code)
+            flash(f'An error occurred: {str(e)}. Please try again.', 'error')
+            return render_template('verify_email.html', customer=dict(customer))
     
-    # Get code from session for popup display
-    code = session.pop('verification_code', None)
     conn.close()
-    return render_template('verify_phone.html', customer=dict(customer), verification_code=code)
+    return render_template('verify_email.html', customer=dict(customer))
 
 @app.route('/send-verification-code', methods=['POST'])
 @customer_login_required
 def send_verification_code():
-    """Send verification code to customer's phone."""
+    """Send verification code to customer's email."""
     conn = get_db_connection()
     customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
     
-    if not customer['phone']:
+    if not customer['email']:
         conn.close()
-        flash('Please add a phone number to your account first.', 'error')
+        flash('Email address not found. Please contact support.', 'error')
         return redirect(url_for('customer_profile'))
     
     # Generate code
@@ -3177,17 +3401,45 @@ def send_verification_code():
     
     # Save verification code
     conn.execute('''
-        INSERT INTO phone_verifications (customer_id, phone, verification_code, expires_at)
+        INSERT INTO email_verifications (customer_id, email, verification_code, expires_at)
         VALUES (?, ?, ?, ?)
-    ''', (session['customer_id'], customer['phone'], code, expires_at))
+    ''', (session['customer_id'], customer['email'], code, expires_at))
     conn.commit()
+    
+    # Send verification email via Flask-Mail
+    if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
+        try:
+            subject = 'Email Verification Code - Cafe Next Door'
+            body = f'''
+Hello {customer['first_name']},
+
+Thank you for registering with Cafe Next Door!
+
+Your email verification code is: {code}
+
+This code will expire in 15 minutes.
+
+If you didn't request this code, please ignore this email.
+
+Best regards,
+Cafe Next Door Team
+'''
+            msg = Message(
+                subject=subject,
+                recipients=[customer['email']],
+                body=body,
+                sender=app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+            )
+            mail.send(msg)
+            flash('Verification code has been sent to your email address!', 'success')
+        except Exception as e:
+            print(f"Error sending verification email: {str(e)}")
+            flash(f'Error sending verification email: {str(e)}. Please try again later or contact support.', 'error')
+    else:
+        flash('Email service is not configured. Please set MAIL_USERNAME and MAIL_PASSWORD in your environment variables.', 'error')
+    
     conn.close()
-    
-    # Store code in session to show in popup
-    session['verification_code'] = code
-    session['code_sent'] = True
-    
-    return redirect(url_for('verify_phone'))
+    return redirect(url_for('verify_email'))
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -3220,24 +3472,50 @@ def forgot_password():
             
             # Generate reset link
             reset_link = url_for('reset_password', token=token, _external=True)
+
+            # Send password reset email via Flask-Mail
+            if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
+                try:
+                    subject = 'Password Reset Request - Cafe Next Door'
+                    body = f'''
+Hello {customer['first_name']},
+
+You requested to reset your password for your Cafe Next Door account.
+
+Click the link below to reset your password:
+{reset_link}
+
+This link will expire in 1 hour.
+
+If you didn't request a password reset, please ignore this email. Your password will remain unchanged.
+
+Best regards,
+Cafe Next Door Team
+'''
+                    msg = Message(
+                        subject=subject,
+                        recipients=[email],
+                        body=body,
+                        sender=app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+                    )
+                    mail.send(msg)
+                    print(f"Password reset email sent to {email}")
+                except Exception as e:
+                    print(f"Error sending password reset email: {str(e)}")
+                    flash('Error sending password reset email. Please try again later or contact support.', 'error')
+                    conn.close()
+                    return render_template('forgot_password.html')
             
-            # Store in session to show in popup
-            session['reset_link'] = reset_link
-            session['reset_email'] = email
-            
-            # In production, send email here
-            # For now, redirect to show popup
-            return redirect(url_for('forgot_password'))
+            conn.close()
+            flash('If an account exists with that email, password reset instructions have been sent.', 'success')
+            return redirect(url_for('customer_login'))
         else:
             # Don't reveal if email exists - still show success message
             conn.close()
             flash('If an account exists with that email, password reset instructions have been sent.', 'success')
             return redirect(url_for('customer_login'))
     
-    # Get reset link from session for popup display
-    reset_link = session.pop('reset_link', None)
-    reset_email = session.pop('reset_email', None)
-    return render_template('forgot_password.html', reset_link=reset_link, reset_email=reset_email)
+    return render_template('forgot_password.html')
 
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
@@ -4530,6 +4808,75 @@ def admin_edit_user(user_id):
     
     conn.close()
     return render_template('admin_user_form.html', action='Edit', user=dict(user))
+
+@app.route('/admin/categories')
+@manager_required
+def admin_categories():
+    """Admin page to manage menu categories."""
+    conn = get_db_connection()
+    
+    # Get all distinct categories with item counts
+    categories_data = conn.execute('''
+        SELECT category, COUNT(*) as item_count
+        FROM menu_items
+        GROUP BY category
+        ORDER BY category
+    ''').fetchall()
+    
+    categories = [dict(row) for row in categories_data]
+    
+    conn.close()
+    return render_template('admin_categories.html', categories=categories)
+
+@app.route('/admin/categories/add', methods=['POST'])
+@manager_required
+def admin_add_category():
+    """Add a new category."""
+    category_name = request.form.get('category_name', '').strip()
+    
+    if not category_name:
+        flash('Category name is required.', 'error')
+        return redirect(url_for('admin_categories'))
+    
+    # Check if category already exists
+    conn = get_db_connection()
+    existing = conn.execute('SELECT COUNT(*) FROM menu_items WHERE category = ?', (category_name,)).fetchone()
+    
+    if existing[0] > 0:
+        flash(f'Category "{category_name}" already exists.', 'error')
+        conn.close()
+        return redirect(url_for('admin_categories'))
+    
+    # Category will be created when a menu item uses it, so we just confirm
+    conn.close()
+    flash(f'Category "{category_name}" is ready to use. Add a menu item with this category to create it.', 'success')
+    return redirect(url_for('admin_categories'))
+
+@app.route('/admin/categories/delete/<category_name>', methods=['POST'])
+@manager_required
+def admin_delete_category(category_name):
+    """Delete a category by renaming all items in it to 'Uncategorized'."""
+    if not category_name:
+        flash('Category name is required.', 'error')
+        return redirect(url_for('admin_categories'))
+    
+    conn = get_db_connection()
+    
+    # Check how many items use this category
+    item_count = conn.execute('SELECT COUNT(*) FROM menu_items WHERE category = ?', (category_name,)).fetchone()[0]
+    
+    if item_count == 0:
+        flash('Category not found or already empty.', 'error')
+        conn.close()
+        return redirect(url_for('admin_categories'))
+    
+    # Update all items in this category to 'Uncategorized'
+    conn.execute('UPDATE menu_items SET category = ? WHERE category = ?', ('Uncategorized', category_name))
+    conn.commit()
+    conn.close()
+    
+    flash(f'Category "{category_name}" deleted. {item_count} item(s) moved to "Uncategorized".', 'success')
+    return redirect(url_for('admin_categories'))
 
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @admin_required

@@ -37,13 +37,22 @@
             <div class="messages-list">
                 {% for message in messages %}
                     <div class="message-card {% if message.get('archived', 0) %}archived{% endif %}">
-                        {% if message.get('archived', 0) %}
-                        <div class="archived-badge">Archived</div>
-                        {% endif %}
                         <div class="message-header">
                             <div class="message-sender">
-                                <strong>{{ message['name'] }}</strong>
-                                <span class="message-email">{{ message['email'] }}</span>
+                                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                                    <div>
+                                        <strong>{{ message['name'] }}</strong>
+                                        <span class="message-email">{{ message['email'] }}</span>
+                                    </div>
+                                    <div class="message-badges" style="display: inline-flex; gap: 0.5rem; flex-wrap: wrap;">
+                                        {% if message.get('replied', 0) %}
+                                        <span style="background-color: #4CAF50; color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Replied</span>
+                                        {% endif %}
+                                        {% if message.get('archived', 0) %}
+                                        <span style="background: linear-gradient(135deg, #8b6f47 0%, #6b5010 100%); color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Archived</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </div>
                             <div class="message-date">
                                 {{ message['created_at'] }}
@@ -53,9 +62,13 @@
                             <p>{{ message['message'] }}</p>
                         </div>
                         <div class="message-actions">
-                            <a href="mailto:{{ message['email'] }}?subject=Re: Your message to Cafe Next Door&body=Dear {{ message['name']|replace(' ', '%20') }},%0D%0A%0D%0AThank you for contacting Cafe Next Door. We have received your message and will get back to you soon.%0D%0A%0D%0ABest regards,%0D%0ACafe Next Door Team" class="btn btn-small btn-reply" target="_blank">
+                            <a href="{{ url_for('admin_reply_message', message_id=message['id']) }}" class="btn btn-small btn-reply">
                                 <span class="btn-icon">✉</span>
-                                Reply via Email
+                                Reply
+                            </a>
+                            <a href="mailto:{{ message['email'] }}?subject=Re: Your message to Cafe Next Door&body=Dear {{ message['name']|replace(' ', '%20') }},%0D%0A%0D%0AThank you for contacting Cafe Next Door. We have received your message and will get back to you soon.%0D%0A%0D%0ABest regards,%0D%0ACafe Next Door Team" class="btn btn-small btn-secondary" target="_blank" style="margin-left: 0.5rem;">
+                                <span class="btn-icon">📧</span>
+                                Open Email Client
                             </a>
                             {% if message.get('archived', 0) %}
                             <form method="POST" action="{{ url_for('admin_unarchive_message', message_id=message['id']) }}" style="display: inline;">

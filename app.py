@@ -3312,29 +3312,40 @@ def loyalty_program():
 @customer_login_required
 def verify_email():
     """Email verification page."""
-    conn = get_db_connection()
-    customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
-    
-    if not customer['email']:
-        conn.close()
-        flash('Email address not found. Please contact support.', 'error')
-        return redirect(url_for('customer_profile'))
-    
-    # Check if email_verified column exists
     try:
-        # Try to access email_verified column
-        email_verified = customer.get('email_verified', 0) if customer else 0
-        # If column doesn't exist, the get will return None, so convert to 0
-        if email_verified is None:
+        conn = get_db_connection()
+        customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
+        
+        if not customer:
+            conn.close()
+            flash('Customer not found. Please log in again.', 'error')
+            return redirect(url_for('customer_login'))
+        
+        # Convert Row to dict if needed
+        if not isinstance(customer, dict):
+            customer = dict(customer)
+        
+        customer_email = customer.get('email', '')
+        if not customer_email:
+            conn.close()
+            flash('Email address not found. Please contact support.', 'error')
+            return redirect(url_for('customer_profile'))
+        
+        # Check if email_verified column exists
+        try:
+            # Try to access email_verified column
+            email_verified = customer.get('email_verified', 0)
+            # If column doesn't exist, the get will return None, so convert to 0
+            if email_verified is None:
+                email_verified = 0
+        except (KeyError, AttributeError, TypeError):
+            # Column doesn't exist in database yet
             email_verified = 0
-    except (KeyError, AttributeError, TypeError):
-        # Column doesn't exist in database yet
-        email_verified = 0
-    
-    if email_verified == 1:
-        conn.close()
-        flash('Your email is already verified.', 'success')
-        return redirect(url_for('customer_profile'))
+        
+        if email_verified == 1:
+            conn.close()
+            flash('Your email is already verified.', 'success')
+            return redirect(url_for('customer_profile'))
     
     if request.method == 'POST':
         try:
@@ -3343,7 +3354,7 @@ def verify_email():
             if not code:
                 flash('Please enter the verification code.', 'error')
                 conn.close()
-                return render_template('verify_email.html', customer=dict(customer))
+                return render_template('verify_email.html', customer=customer)
             
             # Check verification code
             verification = conn.execute('''
@@ -3364,7 +3375,7 @@ def verify_email():
                         if datetime.now() > expires_at:
                             conn.close()
                             flash('Verification code has expired. Please request a new one.', 'error')
-                            return render_template('verify_email.html', customer=dict(customer))
+                            return render_template('verify_email.html', customer=customer)
                 except (ValueError, TypeError) as e:
                     print(f"Error parsing expiration date: {str(e)}")
                     # If we can't parse the date, assume it's valid and proceed

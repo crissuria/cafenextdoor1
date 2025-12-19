@@ -41,8 +41,8 @@
                             <div class="message-sender">
                                 <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
                                     <div>
-                                        <strong>{{ message['name'] }}</strong>
-                                        <span class="message-email">{{ message['email'] }}</span>
+                                <strong>{{ message['name'] }}</strong>
+                                <span class="message-email">{{ message['email'] }}</span>
                                     </div>
                                     <div class="message-badges" style="display: inline-flex; gap: 0.5rem; flex-wrap: wrap;">
                                         {% if message.get('replied', 0) %}

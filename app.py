@@ -1131,38 +1131,29 @@ def send_order_notification(customer_id, order_id, status, conn=None):
         conn.commit()
         
         # Send email if enabled
-        if customer_dict.get('email_notifications', 1) and customer_dict.get('email'):
-            # Check if email service is configured
-            if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
-                try:
-                    sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
-                    msg = Message(
-                        subject=f'Order #{order_id} - {notification["title"]}',
-                        recipients=[customer_dict['email']],
-                        body=f'''Hello {customer_dict.get('first_name', 'Customer')},
+        if customer_dict.get('email_notifications', 1):
+            try:
+                msg = Message(
+                    subject=f'Order #{order_id} - {notification["title"]}',
+                    recipients=[customer_dict['email']],
+                    body=f'''Hello {customer_dict['first_name']},
 
 {notification['message']}
 
 Order Details:
 - Order ID: #{order_id}
-- Total: P{order_dict.get("total_amount", 0):.2f}
+- Total: P{order_dict["total_amount"]:.2f}
 - Pickup Time: {pickup_time}
 
 Thank you for choosing Cafe Next Door!
 
 Best regards,
-Cafe Next Door Team''',
-                        sender=sender
-                    )
-                    mail.send(msg)
-                    print(f"Email notification sent to {customer_dict['email']} for order #{order_id}")
-                except Exception as e:
-                    import traceback
-                    print(f"Error sending email notification: {str(e)}")
-                    print(traceback.format_exc())
-                    # Don't fail the notification - it's already saved to database
-            else:
-                print(f"Email service not configured. Skipping email notification for order #{order_id}")
+Cafe Next Door Team'''
+                )
+                mail.send(msg)
+                print(f"Email notification sent to {customer_dict['email']} for order #{order_id}")
+            except Exception as e:
+                print(f"Error sending email notification: {e}")
         
         # SMS notification (simulated - store in session for popup)
         if customer_dict.get('sms_notifications', 1) and customer_dict.get('phone'):
@@ -1269,7 +1260,7 @@ def menu():
         # Get all categories for filter dropdown
         try:
             all_categories_rows = conn.execute('SELECT DISTINCT category FROM menu_items ORDER BY category').fetchall()
-            all_categories = [row['category'] for row in all_categories_rows]
+            all_categories = [dict(row)['category'] if isinstance(row, sqlite3.Row) else row['category'] for row in all_categories_rows]
         except:
             all_categories = []
         
@@ -1279,7 +1270,7 @@ def menu():
             try:
                 fav_rows = conn.execute('SELECT menu_item_id FROM favorites WHERE customer_id = ?', 
                                         (session['customer_id'],)).fetchall()
-                favorites = [row['menu_item_id'] for row in fav_rows]
+                favorites = [dict(row)['menu_item_id'] if isinstance(row, sqlite3.Row) else row['menu_item_id'] for row in fav_rows]
             except:
                 favorites = []
         
@@ -1290,14 +1281,18 @@ def menu():
                     SELECT AVG(rating) as avg_rating, COUNT(*) as review_count
                     FROM reviews WHERE menu_item_id = ? AND is_approved = 1
                 ''', (item['id'],)).fetchone()
-                item['avg_rating'] = rating_data['avg_rating'] or 0 if rating_data else 0
-                item['review_count'] = rating_data['review_count'] or 0 if rating_data else 0
+                if rating_data:
+                    # Convert Row to dict if needed
+                    if not isinstance(rating_data, dict):
+                        rating_data = dict(rating_data)
+                    item['avg_rating'] = rating_data.get('avg_rating') or 0
+                    item['review_count'] = rating_data.get('review_count') or 0
+                else:
+                    item['avg_rating'] = 0
+                    item['review_count'] = 0
             except:
                 item['avg_rating'] = 0
                 item['review_count'] = 0
-        
-        if conn:
-            conn.close()
         
         # Group items by category (show all items that are marked as available)
         categories = {}
@@ -1306,6 +1301,9 @@ def menu():
             if category not in categories:
                 categories[category] = []
             categories[category].append(item)
+        
+        if conn:
+            conn.close()
         
         return render_template('menu.html', categories=categories, all_categories=all_categories,
                               search_query=search_query, category_filter=category_filter,
@@ -1323,6 +1321,140 @@ def menu():
         return render_template('menu.html', categories={}, all_categories=[],
                               search_query=search_query or '', category_filter=category_filter or '', 
                               price_sort=price_sort or '', favorites=[])
+
+# Email Verification Helper Functions
+def generate_verification_code():
+    """Generate a 6-digit verification code."""
+    import random
+    return str(random.randint(100000, 999999))
+
+def send_verification_email(customer_email, customer_name, verification_code):
+    """Send email verification code to customer."""
+    if not app.config.get('MAIL_PASSWORD') or not app.config.get('MAIL_USERNAME'):
+        return False, 'Email service is not configured.'
+    
+    try:
+        sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+        subject = 'Email Verification Code - Cafe Next Door'
+        body = f'''Hello {customer_name or 'Customer'},
+
+Thank you for registering with Cafe Next Door!
+
+Your email verification code is: {verification_code}
+
+This code will expire in 15 minutes.
+
+If you didn't request this code, please ignore this email.
+
+Best regards,
+Cafe Next Door Team'''
+        
+        msg = Message(
+            subject=subject,
+            recipients=[customer_email],
+            body=body,
+            sender=sender
+        )
+        mail.send(msg)
+        print(f"Verification email sent successfully to {customer_email}")
+        return True, None
+    except Exception as e:
+        import traceback
+        error_msg = f'Error sending verification email: {str(e)}'
+        print(error_msg)
+        print(traceback.format_exc())
+        return False, error_msg
+
+def create_verification_code(customer_id, customer_email, conn):
+    """Create and save a verification code for a customer."""
+    try:
+        # Generate code
+        code = generate_verification_code()
+        expires_at = (datetime.now() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Ensure email_verifications table exists
+        try:
+            conn.execute('''
+                INSERT INTO email_verifications (customer_id, email, verification_code, expires_at)
+                VALUES (?, ?, ?, ?)
+            ''', (customer_id, customer_email, code, expires_at))
+            conn.commit()
+            return code, None
+        except sqlite3.OperationalError as e:
+            # Table might not exist, create it
+            if 'no such table' in str(e).lower():
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS email_verifications (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        customer_id INTEGER NOT NULL,
+                        email TEXT NOT NULL,
+                        verification_code TEXT NOT NULL,
+                        is_verified INTEGER DEFAULT 0,
+                        expires_at TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (customer_id) REFERENCES customers (id)
+                    )
+                ''')
+                conn.commit()
+                # Retry insert
+                conn.execute('''
+                    INSERT INTO email_verifications (customer_id, email, verification_code, expires_at)
+                    VALUES (?, ?, ?, ?)
+                ''', (customer_id, customer_email, code, expires_at))
+                conn.commit()
+                return code, None
+            raise
+    except Exception as e:
+        import traceback
+        error_msg = f'Error creating verification code: {str(e)}'
+        print(error_msg)
+        print(traceback.format_exc())
+        return None, error_msg
+
+def verify_email_code(customer_id, code, conn):
+    """Verify an email verification code."""
+    try:
+        # Get the latest unverified code
+        verification = conn.execute('''
+            SELECT * FROM email_verifications 
+            WHERE customer_id = ? AND verification_code = ? AND is_verified = 0
+            ORDER BY created_at DESC LIMIT 1
+        ''', (customer_id, code)).fetchone()
+        
+        if not verification:
+            return False, 'Invalid verification code.'
+        
+        # Convert Row to dict
+        verification = dict(verification) if not isinstance(verification, dict) else verification
+        
+        # Check expiration
+        if verification.get('expires_at'):
+            try:
+                expires_at = datetime.strptime(verification['expires_at'], '%Y-%m-%d %H:%M:%S')
+                if datetime.now() > expires_at:
+                    return False, 'Verification code has expired. Please request a new one.'
+            except (ValueError, TypeError):
+                pass  # If we can't parse, assume valid
+        
+        # Mark as verified
+        conn.execute('UPDATE email_verifications SET is_verified = 1 WHERE id = ?', (verification['id'],))
+        
+        # Update customer email_verified status
+        try:
+            conn.execute('UPDATE customers SET email_verified = 1 WHERE id = ?', (customer_id,))
+        except sqlite3.OperationalError:
+            # Column doesn't exist, add it
+            conn.execute('ALTER TABLE customers ADD COLUMN email_verified INTEGER DEFAULT 0')
+            conn.execute('UPDATE customers SET email_verified = 1 WHERE id = ?', (customer_id,))
+        
+        conn.commit()
+        return True, None
+    except Exception as e:
+        import traceback
+        error_msg = f'Error verifying code: {str(e)}'
+        print(error_msg)
+        print(traceback.format_exc())
+        return False, error_msg
 
 def get_client_ip():
     """Get the client's IP address."""
@@ -1371,10 +1503,11 @@ def check_rate_limit(ip_address, email, message):
     
     # Check IP-based rate limiting (max 3 messages per hour)
     one_hour_ago = datetime.now() - timedelta(hours=1)
-    ip_submissions = conn.execute('''
-        SELECT COUNT(*) FROM contact_messages 
+    ip_submissions_row = conn.execute('''
+        SELECT COUNT(*) as count FROM contact_messages 
         WHERE ip_address = ? AND created_at > ?
-    ''', (ip_address, one_hour_ago.strftime('%Y-%m-%d %H:%M:%S'))).fetchone()[0]
+    ''', (ip_address, one_hour_ago.strftime('%Y-%m-%d %H:%M:%S'))).fetchone()
+    ip_submissions = dict(ip_submissions_row).get('count', 0) if isinstance(ip_submissions_row, sqlite3.Row) else (ip_submissions_row[0] if ip_submissions_row else 0)
     
     if ip_submissions >= 3:
         conn.close()
@@ -1382,10 +1515,11 @@ def check_rate_limit(ip_address, email, message):
     
     # Check email-based rate limiting (max 2 messages per hour)
     if email:
-        email_submissions = conn.execute('''
-            SELECT COUNT(*) FROM contact_messages 
+        email_submissions_row = conn.execute('''
+            SELECT COUNT(*) as count FROM contact_messages 
             WHERE email = ? AND created_at > ?
-        ''', (email, one_hour_ago.strftime('%Y-%m-%d %H:%M:%S'))).fetchone()[0]
+        ''', (email, one_hour_ago.strftime('%Y-%m-%d %H:%M:%S'))).fetchone()
+        email_submissions = dict(email_submissions_row).get('count', 0) if isinstance(email_submissions_row, sqlite3.Row) else (email_submissions_row[0] if email_submissions_row else 0)
         
         if email_submissions >= 2:
             conn.close()
@@ -1412,7 +1546,7 @@ def delete_duplicate_messages(email, message):
     # If there are duplicates, delete all except the most recent one
     if len(duplicates) > 1:  # More than one means we have duplicates
         # Keep the most recent (first in DESC order), delete the rest
-        duplicate_ids = [row['id'] for row in duplicates[1:]]  # Skip the first (most recent)
+        duplicate_ids = [dict(row)['id'] if isinstance(row, sqlite3.Row) else row['id'] for row in duplicates[1:]]  # Skip the first (most recent)
         
         if duplicate_ids:
             placeholders = ','.join(['?'] * len(duplicate_ids))
@@ -1618,25 +1752,26 @@ def admin_login():
                     'SELECT * FROM users WHERE username = ?', (username,)
                 ).fetchone()
                 
-                if conn:
-                    conn.close()
-                
                 if not user:
+                    if conn:
+                        conn.close()
                     print(f"Login attempt failed: User '{username}' not found")
                     flash('Invalid username or password.', 'error')
                     return render_template('login.html')
                 
                 # Convert Row to dict for easier access
-                user_dict = dict(user)
+                if not isinstance(user, dict):
+                    user = dict(user)
+                user_dict = user
                 
                 # Check password
-                password_valid = check_password_hash(user_dict['password_hash'], password)
+                password_valid = check_password_hash(user_dict.get('password_hash', ''), password)
                 print(f"Login attempt for '{username}': Password valid = {password_valid}")
                 
                 if password_valid:
                     # Set session variables
-                    session['user_id'] = user_dict['id']
-                    session['username'] = user_dict['username']
+                    session['user_id'] = user_dict.get('id')
+                    session['username'] = user_dict.get('username')
                     session['user_role'] = user_dict.get('role') or 'admin'
                     session['user_full_name'] = user_dict.get('full_name')
                     display_name = user_dict.get('full_name') or username
@@ -1644,12 +1779,16 @@ def admin_login():
                     # Force session to be saved
                     session.permanent = True
                     
-                    print(f"Login successful for '{username}' (ID: {user_dict['id']}, Role: {session['user_role']})")
+                    print(f"Login successful for '{username}' (ID: {user_dict.get('id')}, Role: {session['user_role']})")
                     print(f"Session after login: user_id={session.get('user_id')}, username={session.get('username')}, role={session.get('user_role')}")
                     
+                    if conn:
+                        conn.close()
                     flash(f'Welcome back, {display_name}!', 'success')
                     return redirect(url_for('admin_dashboard'))
                 else:
+                    if conn:
+                        conn.close()
                     print(f"Login attempt failed: Invalid password for '{username}'")
                     flash('Invalid username or password.', 'error')
                     return render_template('login.html')
@@ -1683,7 +1822,7 @@ def admin_login():
         import traceback
         traceback.print_exc()
         flash('An unexpected error occurred. Please try again.', 'error')
-        return render_template('login.html')
+    return render_template('login.html')
 
 @app.route('/logout')
 def logout():
@@ -2048,14 +2187,14 @@ def admin_delete_message(message_id):
     """Admin route - deletes a contact message."""
     conn = get_db_connection()
     message = conn.execute('SELECT * FROM contact_messages WHERE id = ?', (message_id,)).fetchone()
-
+    
     if message:
         conn.execute('DELETE FROM contact_messages WHERE id = ?', (message_id,))
         conn.commit()
         flash(f'Message from {message["name"]} has been deleted successfully!', 'success')
     else:
         flash('Message not found.', 'error')
-
+    
     conn.close()
     return redirect(request.referrer or url_for('admin_messages'))
 
@@ -2063,44 +2202,33 @@ def admin_delete_message(message_id):
 @login_required
 def admin_reply_message(message_id):
     """Admin route - reply to a contact message via email."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        message = conn.execute('SELECT * FROM contact_messages WHERE id = ?', (message_id,)).fetchone()
+    conn = get_db_connection()
+    message = conn.execute('SELECT * FROM contact_messages WHERE id = ?', (message_id,)).fetchone()
+    
+    if not message:
+        conn.close()
+        flash('Message not found.', 'error')
+        return redirect(url_for('admin_messages'))
+    
+    if request.method == 'POST':
+        reply_message = request.form.get('reply_message', '').strip()
         
-        if not message:
-            if conn:
-                conn.close()
-            flash('Message not found.', 'error')
-            return redirect(url_for('admin_messages'))
+        if not reply_message:
+            flash('Please enter a reply message.', 'error')
+            conn.close()
+            return render_template('admin_reply_message.html', message=dict(message))
         
-        # Convert Row to dict if needed
-        if not isinstance(message, dict):
-            message = dict(message)
-        
-        if request.method == 'POST':
-            reply_message = request.form.get('reply_message', '').strip()
-            
-            if not reply_message:
-                flash('Please enter a reply message.', 'error')
-                if conn:
-                    conn.close()
-                return render_template('admin_reply_message.html', message=message)
-            
-            # Send reply email
-            if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
-                try:
-                    sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
-                    cafe_email = app.config.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')
-                    
-                    subject = f'Re: Your message to Cafe Next Door'
-                    body = f'''
-Dear {message.get('name', 'Customer')},
+        # Send reply email
+        if app.config['MAIL_PASSWORD']:
+            try:
+                subject = f'Re: Your message to Cafe Next Door'
+                body = f'''
+Dear {message['name']},
 
 Thank you for contacting Cafe Next Door. We have received your message and are happy to respond.
 
 Your original message:
-{message.get('message', '')}
+{message['message']}
 
 ---
 Our Reply:
@@ -2111,49 +2239,34 @@ If you have any further questions, please don't hesitate to contact us again.
 
 Best regards,
 Cafe Next Door Team
-{cafe_email}
+{app.config.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')}
 '''
-                    msg = Message(
-                        subject=subject,
-                        recipients=[message.get('email', '')],
-                        body=body,
-                        sender=sender,
-                        reply_to=cafe_email
-                    )
-                    mail.send(msg)
-                    print(f"Reply email sent to {message.get('email', '')}")
-                    
-                    # Mark message as replied
-                    conn.execute('UPDATE contact_messages SET replied = 1 WHERE id = ?', (message_id,))
-                    conn.commit()
-                    
-                    flash(f'Reply sent successfully to {message.get("name", "customer")}!', 'success')
-                except Exception as e:
-                    import traceback
-                    print(f"Error sending reply email: {str(e)}")
-                    print(traceback.format_exc())
-                    flash('Error sending reply email. Please try again or use the mailto link.', 'error')
-            else:
-                flash('Email service is not configured. Please configure MAIL_PASSWORD and MAIL_USERNAME to send replies.', 'error')
-            
-            if conn:
-                conn.close()
-            return redirect(url_for('admin_messages'))
+                msg = Message(
+                    subject=subject,
+                    recipients=[message['email']],
+                    body=body,
+                    sender=app.config['MAIL_DEFAULT_SENDER'],
+                    reply_to=app.config.get('CAFE_EMAIL', app.config['MAIL_DEFAULT_SENDER'])
+                )
+                mail.send(msg)
+                print(f"Reply email sent to {message['email']}")
+                
+                # Mark message as replied
+                conn.execute('UPDATE contact_messages SET replied = 1 WHERE id = ?', (message_id,))
+                conn.commit()
+                
+                flash(f'Reply sent successfully to {message["name"]}!', 'success')
+            except Exception as e:
+                print(f"Error sending reply email: {str(e)}")
+                flash('Error sending reply email. Please try again or use the mailto link.', 'error')
+        else:
+            flash('Email service is not configured. Please configure MAIL_PASSWORD to send replies.', 'error')
         
-        if conn:
-            conn.close()
-        return render_template('admin_reply_message.html', message=message)
-    except Exception as e:
-        import traceback
-        print(f"Error in admin_reply_message: {str(e)}")
-        print(traceback.format_exc())
-        try:
-            if conn:
-                conn.close()
-        except:
-            pass
-        flash('An error occurred. Please try again.', 'error')
+        conn.close()
         return redirect(url_for('admin_messages'))
+    
+    conn.close()
+    return render_template('admin_reply_message.html', message=dict(message))
 
 # Customer authentication decorator
 def customer_login_required(f):
@@ -2200,15 +2313,41 @@ def customer_register():
         # Create account
         try:
             password_hash = generate_password_hash(password)
-            conn.execute('''
-                INSERT INTO customers (email, password_hash, first_name, last_name, phone)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (email, password_hash, first_name, last_name, phone))
+            # Try to insert with email_verified column
+            try:
+                conn.execute('''
+                    INSERT INTO customers (email, password_hash, first_name, last_name, phone, email_verified)
+                    VALUES (?, ?, ?, ?, ?, 0)
+                ''', (email, password_hash, first_name, last_name, phone))
+            except sqlite3.OperationalError as e:
+                # Column doesn't exist, add it first
+                if 'no such column: email_verified' in str(e).lower():
+                    print(f"Adding email_verified column: {str(e)}")
+                    conn.execute('ALTER TABLE customers ADD COLUMN email_verified INTEGER DEFAULT 0')
+                    # Now insert with email_verified (column now exists)
+                    conn.execute('''
+                        INSERT INTO customers (email, password_hash, first_name, last_name, phone, email_verified)
+                        VALUES (?, ?, ?, ?, ?, 0)
+                    ''', (email, password_hash, first_name, last_name, phone))
+                else:
+                    raise  # Re-raise if it's a different error
             
+            # Get the new customer ID
+            customer_id = conn.lastrowid
             conn.commit()
-            conn.close()
             
-            flash('Account created successfully! Please log in.', 'success')
+            # Send verification email
+            code, error_msg = create_verification_code(customer_id, email, conn)
+            if code:
+                email_sent, email_error = send_verification_email(email, first_name, code)
+                if email_sent:
+                    flash('Account created successfully! A verification code has been sent to your email address.', 'success')
+                else:
+                    flash(f'Account created successfully! However, we couldn\'t send the verification email: {email_error}. Please contact support.', 'warning')
+            else:
+                flash(f'Account created successfully! However, we couldn\'t generate a verification code: {error_msg}. Please contact support.', 'warning')
+            
+            conn.close()
             return redirect(url_for('customer_login'))
         except Exception as e:
             import traceback
@@ -2235,11 +2374,16 @@ def customer_login():
         customer = conn.execute('SELECT * FROM customers WHERE email = ?', (email,)).fetchone()
         conn.close()
         
-        if customer and check_password_hash(customer['password_hash'], password):
-            session['customer_id'] = customer['id']
-            session['customer_name'] = customer['first_name']
-            session['customer_email'] = customer['email']
-            flash(f'Welcome back, {customer["first_name"]}!', 'success')
+        if customer:
+            # Convert Row to dict if needed
+            if not isinstance(customer, dict):
+                customer = dict(customer)
+            
+            if check_password_hash(customer.get('password_hash', ''), password):
+                session['customer_id'] = customer.get('id')
+                session['customer_name'] = customer.get('first_name', '')
+                session['customer_email'] = customer.get('email', '')
+                flash(f'Welcome back, {customer.get("first_name", "Customer")}!', 'success')
             
             # Redirect to cart if there are items, otherwise to menu
             if session.get('cart'):
@@ -2286,9 +2430,7 @@ def edit_profile():
             flash('Phone number is required.', 'error')
             conn.close()
             return render_template('edit_profile.html', customer=dict(customer))
-        
-        # If email changed, reset verification
-        email_changed = email != customer['email']
+
         conn.execute('''
             UPDATE customers SET email = ?, phone = ?, first_name = ?, last_name = ?
             WHERE id = ?
@@ -2296,12 +2438,8 @@ def edit_profile():
         conn.commit()
         conn.close()
 
-        if email_changed:
-            flash('Profile updated! Please verify your new email address.', 'success')
-            return redirect(url_for('verify_email'))
-        else:
-            flash('Profile updated successfully!', 'success')
-            return redirect(url_for('customer_profile'))
+        flash('Profile updated successfully!', 'success')
+        return redirect(url_for('customer_profile'))
     
     conn.close()
     return render_template('edit_profile.html', customer=dict(customer))
@@ -2529,9 +2667,12 @@ def view_cart():
         for item in cart:
             menu_item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item['id'],)).fetchone()
             if menu_item:
-                cart_item = dict(menu_item)
+                # Convert Row to dict if needed
+                if not isinstance(menu_item, dict):
+                    menu_item = dict(menu_item)
+                cart_item = menu_item.copy()
                 cart_item['quantity'] = item['quantity']
-                cart_item['subtotal'] = menu_item['price'] * item['quantity']
+                cart_item['subtotal'] = float(menu_item.get('price', 0)) * item['quantity']
                 cart_items.append(cart_item)
                 total += cart_item['subtotal']
         conn.close()
@@ -2647,16 +2788,6 @@ def checkout():
         print(f"Error checking blacklist: {str(e)}")
         # Continue if blacklist check fails
     
-    # Check email verification
-    try:
-        if not is_email_verified(session['customer_id']):
-            conn.close()
-            flash('Please verify your email address before placing an order.', 'error')
-            return redirect(url_for('verify_email'))
-    except Exception as e:
-        print(f"Error checking email verification: {str(e)}")
-        # If verification check fails, allow checkout but log the error
-        # You might want to change this to block checkout if verification is critical
     
     # Get cart items with details
     cart_items = []
@@ -2802,6 +2933,21 @@ def checkout():
             for ing in required_ingredients:
                 quantity_needed = ing['quantity_required'] * cart_item['quantity']
                 ingredient_id = ing['ingredient_id']
+                
+                # Check if sufficient stock is available
+                ingredient = conn.execute('SELECT current_stock, name FROM ingredients WHERE id = ?', (ingredient_id,)).fetchone()
+                if not ingredient:
+                    conn.rollback()
+                    conn.close()
+                    flash(f'Error: Ingredient not found for menu item.', 'error')
+                    return redirect(url_for('view_cart'))
+                
+                current_stock = ingredient['current_stock'] or 0
+                if current_stock < quantity_needed:
+                    conn.rollback()
+                    conn.close()
+                    flash(f'Insufficient stock for {ingredient["name"]}. Available: {current_stock:.2f}, Required: {quantity_needed:.2f}', 'error')
+                    return redirect(url_for('view_cart'))
                 
                 # Update stock
                 conn.execute('''
@@ -3016,25 +3162,34 @@ def admin_mark_no_show(order_id):
         flash('Order not found.', 'error')
         return redirect(url_for('admin_orders'))
     
+    # Convert order Row to dict if needed
+    if not isinstance(order, dict):
+        order = dict(order)
+    
     # Update customer no-show count
     conn.execute('''
         UPDATE customers SET no_show_count = no_show_count + 1 
         WHERE id = ?
-    ''', (order['customer_id'],))
+    ''', (order.get('customer_id'),))
     
-    customer = conn.execute('SELECT * FROM customers WHERE id = ?', (order['customer_id'],)).fetchone()
+    customer = conn.execute('SELECT * FROM customers WHERE id = ?', (order.get('customer_id'),)).fetchone()
     
-    # Auto-blacklist after 3 no-shows
-    if customer['no_show_count'] >= 3:
-        # Check if already blacklisted
-        existing = conn.execute('SELECT * FROM blacklist WHERE customer_id = ?', (order['customer_id'],)).fetchone()
-        if not existing:
-            conn.execute('''
-                INSERT INTO blacklist (customer_id, email, phone, reason, no_show_count)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (order['customer_id'], customer['email'], customer['phone'], 
-                  'Multiple no-shows (3+)', customer['no_show_count']))
-            flash(f'Customer blacklisted due to {customer["no_show_count"]} no-shows.', 'error')
+    # Convert customer Row to dict if needed
+    if customer:
+        if not isinstance(customer, dict):
+            customer = dict(customer)
+        
+        # Auto-blacklist after 3 no-shows
+        if customer.get('no_show_count', 0) >= 3:
+            # Check if already blacklisted
+            existing = conn.execute('SELECT * FROM blacklist WHERE customer_id = ?', (order.get('customer_id'),)).fetchone()
+            if not existing:
+                conn.execute('''
+                    INSERT INTO blacklist (customer_id, email, phone, reason, no_show_count)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (order.get('customer_id'), customer.get('email', ''), customer.get('phone', ''), 
+                      'Multiple no-shows (3+)', customer.get('no_show_count', 0)))
+                flash(f'Customer blacklisted due to {customer.get("no_show_count", 0)} no-shows.', 'error')
     
     # Update order status
     conn.execute('UPDATE orders SET status = ? WHERE id = ?', ('cancelled', order_id))
@@ -3301,51 +3456,177 @@ def loyalty_program():
     return render_template('loyalty.html', points=dict(points), transactions=[dict(t) for t in transactions])
 
 # Password Reset Routes
+# Email Verification Routes
+@app.route('/verify-email', methods=['GET', 'POST'], endpoint='verify_email')
+@customer_login_required
+def verify_email():
+    """Email verification page - clean and simplified."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
+        
+        if not customer:
+            if conn:
+                conn.close()
+            flash('Customer not found. Please log in again.', 'error')
+            return redirect(url_for('customer_login'))
+        
+        # Convert Row to dict
+        customer = dict(customer) if not isinstance(customer, dict) else customer
+        customer_email = customer.get('email', '')
+        
+        if not customer_email:
+            if conn:
+                conn.close()
+            flash('Email address not found. Please contact support.', 'error')
+            return redirect(url_for('customer_profile'))
+        
+        # Check if already verified
+        email_verified = customer.get('email_verified', 0) or 0
+        if email_verified == 1:
+            if conn:
+                conn.close()
+            flash('Your email is already verified.', 'success')
+            return redirect(url_for('customer_profile'))
+        
+        # Handle POST - verify code
+        if request.method == 'POST':
+            code = request.form.get('verification_code', '').strip()
+            
+            if not code:
+                if conn:
+                    conn.close()
+                flash('Please enter the verification code.', 'error')
+                return render_template('verify_email.html', customer=customer)
+            
+            # Verify the code
+            success, error_msg = verify_email_code(session['customer_id'], code, conn)
+            
+            if success:
+                if conn:
+                    conn.close()
+                flash('Email address verified successfully!', 'success')
+                return redirect(url_for('customer_profile'))
+            else:
+                if conn:
+                    conn.close()
+                flash(error_msg or 'Invalid verification code. Please try again.', 'error')
+                return render_template('verify_email.html', customer=customer)
+        
+        # GET request - show verification page
+        if conn:
+            conn.close()
+        return render_template('verify_email.html', customer=customer)
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in verify_email: {str(e)}")
+        print(traceback.format_exc())
+        try:
+            if conn:
+                conn.close()
+        except:
+            pass
+        flash('An error occurred. Please try again.', 'error')
+        return redirect(url_for('customer_profile'))
+
+@app.route('/send-verification-code', methods=['POST'])
+@customer_login_required
+def send_verification_code():
+    """Send verification code to customer's email - clean and simplified."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        customer = conn.execute('SELECT * FROM customers WHERE id = ?', (session['customer_id'],)).fetchone()
+
+        if not customer:
+            if conn:
+                conn.close()
+            flash('Customer not found. Please log in again.', 'error')
+            return redirect(url_for('customer_login'))
+
+        # Convert Row to dict
+        customer = dict(customer) if not isinstance(customer, dict) else customer
+        customer_email = customer.get('email', '')
+        customer_name = customer.get('first_name', 'Customer')
+
+        if not customer_email:
+            if conn:
+                conn.close()
+            flash('Email address not found. Please contact support.', 'error')
+            return redirect(url_for('customer_profile'))
+
+        # Create verification code
+        code, error_msg = create_verification_code(session['customer_id'], customer_email, conn)
+        if not code:
+            if conn:
+                conn.close()
+            flash(error_msg or 'Error generating verification code. Please try again.', 'error')
+            return redirect(url_for('verify_email'))
+
+        # Send verification email
+        email_sent, email_error = send_verification_email(customer_email, customer_name, code)
+        
+        if email_sent:
+            flash('Verification code has been sent to your email address!', 'success')
+        else:
+            flash(f'Code generated but email could not be sent: {email_error}. Please contact support.', 'warning')
+
+        if conn:
+            conn.close()
+        return redirect(url_for('verify_email'))
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in send_verification_code: {str(e)}")
+        print(traceback.format_exc())
+        try:
+            if conn:
+                conn.close()
+        except:
+            pass
+        flash('An error occurred. Please try again.', 'error')
+        return redirect(url_for('verify_email'))
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     """Request password reset."""
-    conn = None
-    try:
-        if request.method == 'POST':
-            email = request.form.get('email', '').strip().lower()
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        
+        if not email:
+            flash('Please enter your email address.', 'error')
+            return render_template('forgot_password.html')
+        
+        conn = get_db_connection()
+        customer = conn.execute('SELECT * FROM customers WHERE email = ?', (email,)).fetchone()
+        
+        if customer:
+            # Generate secure token
+            token = secrets.token_urlsafe(32)
+            expires_at = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
             
-            if not email:
-                flash('Please enter your email address.', 'error')
-                return render_template('forgot_password.html')
+            # Invalidate any existing tokens for this customer
+            conn.execute('UPDATE password_reset_tokens SET used = 1 WHERE customer_id = ? AND used = 0', (customer['id'],))
             
-            conn = get_db_connection()
-            customer = conn.execute('SELECT * FROM customers WHERE email = ?', (email,)).fetchone()
+            # Store token
+            conn.execute('''
+                INSERT INTO password_reset_tokens (customer_id, token, expires_at)
+                VALUES (?, ?, ?)
+            ''', (customer['id'], token, expires_at))
+            conn.commit()
+            conn.close()
             
-            if customer:
-                # Convert Row to dict if needed
-                if not isinstance(customer, dict):
-                    customer = dict(customer)
-                
-                # Generate secure token
-                token = secrets.token_urlsafe(32)
-                expires_at = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
-                
-                # Invalidate any existing tokens for this customer
-                conn.execute('UPDATE password_reset_tokens SET used = 1 WHERE customer_id = ? AND used = 0', (customer['id'],))
-                
-                # Store token
-                conn.execute('''
-                    INSERT INTO password_reset_tokens (customer_id, token, expires_at)
-                    VALUES (?, ?, ?)
-                ''', (customer['id'], token, expires_at))
-                conn.commit()
-                
-                # Generate reset link
-                reset_link = url_for('reset_password', token=token, _external=True)
+            # Generate reset link
+            reset_link = url_for('reset_password', token=token, _external=True)
 
-                # Send password reset email via Flask-Mail
-                if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
-                    try:
-                        sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
-                        subject = 'Password Reset Request - Cafe Next Door'
-                        body = f'''
-Hello {customer.get('first_name', 'Customer')},
+            # Send password reset email via Flask-Mail
+            if app.config.get('MAIL_PASSWORD') and app.config.get('MAIL_USERNAME'):
+                try:
+                    subject = 'Password Reset Request - Cafe Next Door'
+                    body = f'''
+Hello {customer['first_name']},
 
 You requested to reset your password for your Cafe Next Door account.
 
@@ -3359,123 +3640,83 @@ If you didn't request a password reset, please ignore this email. Your password 
 Best regards,
 Cafe Next Door Team
 '''
-                        msg = Message(
-                            subject=subject,
-                            recipients=[email],
-                            body=body,
-                            sender=sender
-                        )
-                        mail.send(msg)
-                        print(f"Password reset email sent to {email}")
-                    except Exception as e:
-                        import traceback
-                        print(f"Error sending password reset email: {str(e)}")
-                        print(traceback.format_exc())
-                        if conn:
-                            conn.close()
-                        flash('Error sending password reset email. Please try again later or contact support.', 'error')
-                        return render_template('forgot_password.html')
-                
-                if conn:
+                    msg = Message(
+                        subject=subject,
+                        recipients=[email],
+                        body=body,
+                        sender=app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
+                    )
+                    mail.send(msg)
+                    print(f"Password reset email sent to {email}")
+                except Exception as e:
+                    print(f"Error sending password reset email: {str(e)}")
+                    flash('Error sending password reset email. Please try again later or contact support.', 'error')
                     conn.close()
-                flash('If an account exists with that email, password reset instructions have been sent.', 'success')
-                return redirect(url_for('customer_login'))
-            else:
-                # Don't reveal if email exists - still show success message
-                if conn:
-                    conn.close()
-                flash('If an account exists with that email, password reset instructions have been sent.', 'success')
-                return redirect(url_for('customer_login'))
-        
-        return render_template('forgot_password.html')
-    except Exception as e:
-        import traceback
-        print(f"Error in forgot_password: {str(e)}")
-        print(traceback.format_exc())
-        try:
-            if conn:
-                conn.close()
-        except:
-            pass
-        flash('An error occurred. Please try again.', 'error')
-        return render_template('forgot_password.html')
+                    return render_template('forgot_password.html')
+            
+            conn.close()
+            flash('If an account exists with that email, password reset instructions have been sent.', 'success')
+            return redirect(url_for('customer_login'))
+        else:
+            # Don't reveal if email exists - still show success message
+            conn.close()
+            flash('If an account exists with that email, password reset instructions have been sent.', 'success')
+            return redirect(url_for('customer_login'))
+    
+    return render_template('forgot_password.html')
 
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     """Reset password with token."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        
-        # Find valid token
-        reset_token = conn.execute('''
-            SELECT pt.*, c.email 
-            FROM password_reset_tokens pt
-            JOIN customers c ON pt.customer_id = c.id
-            WHERE pt.token = ? AND pt.used = 0 AND pt.expires_at > datetime('now')
-        ''', (token,)).fetchone()
-        
-        if not reset_token:
-            if conn:
-                conn.close()
-            flash('Invalid or expired reset link. Please request a new one.', 'error')
-            return redirect(url_for('forgot_password'))
-        
-        # Convert Row to dict if needed
-        if not isinstance(reset_token, dict):
-            reset_token = dict(reset_token)
-        
-        if request.method == 'POST':
-            password = request.form.get('password')
-            confirm_password = request.form.get('confirm_password')
-            
-            if not password or not confirm_password:
-                flash('Please fill in all fields.', 'error')
-                if conn:
-                    conn.close()
-                return render_template('reset_password.html', token=token)
-            
-            if password != confirm_password:
-                flash('Passwords do not match.', 'error')
-                if conn:
-                    conn.close()
-                return render_template('reset_password.html', token=token)
-            
-            if len(password) < 6:
-                flash('Password must be at least 6 characters.', 'error')
-                if conn:
-                    conn.close()
-                return render_template('reset_password.html', token=token)
-            
-            # Update password
-            password_hash = generate_password_hash(password)
-            conn.execute('UPDATE customers SET password_hash = ? WHERE id = ?', 
-                        (password_hash, reset_token.get('customer_id')))
-            
-            # Mark token as used
-            conn.execute('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', (reset_token.get('id'),))
-            conn.commit()
-            
-            if conn:
-                conn.close()
-            
-            flash('Password reset successfully! You can now log in with your new password.', 'success')
-            return redirect(url_for('customer_login'))
-        
-        if conn:
-            conn.close()
-        return render_template('reset_password.html', token=token)
-    except Exception as e:
-        import traceback
-        print(f"Error in reset_password: {str(e)}")
-        print(traceback.format_exc())
-        try:
-            if conn:
-                conn.close()
-        except:
-            pass
-        flash('An error occurred. Please try again.', 'error')
+    conn = get_db_connection()
+    
+    # Find valid token
+    reset_token = conn.execute('''
+        SELECT pt.*, c.email 
+        FROM password_reset_tokens pt
+        JOIN customers c ON pt.customer_id = c.id
+        WHERE pt.token = ? AND pt.used = 0 AND pt.expires_at > datetime('now')
+    ''', (token,)).fetchone()
+    
+    if not reset_token:
+        conn.close()
+        flash('Invalid or expired reset link. Please request a new one.', 'error')
         return redirect(url_for('forgot_password'))
+    
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not password or not confirm_password:
+            flash('Please fill in all fields.', 'error')
+            conn.close()
+            return render_template('reset_password.html', token=token)
+        
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            conn.close()
+            return render_template('reset_password.html', token=token)
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters.', 'error')
+            conn.close()
+            return render_template('reset_password.html', token=token)
+        
+        # Update password
+        password_hash = generate_password_hash(password)
+        conn.execute('UPDATE customers SET password_hash = ? WHERE id = ?', 
+                    (password_hash, reset_token['customer_id']))
+        
+        # Mark token as used
+        conn.execute('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', (reset_token['id'],))
+        conn.commit()
+        conn.close()
+        
+        flash('Password reset successfully! You can now log in with your new password.', 'success')
+        return redirect(url_for('customer_login'))
+    
+    conn.close()
+    return render_template('reset_password.html', token=token)
 
 # Favorites/Wishlist Routes
 @app.route('/favorites/add/<int:item_id>', methods=['POST'])
@@ -3520,173 +3761,63 @@ def view_favorites():
     items = [dict(row) for row in rows]
     return render_template('favorites.html', items=items)
 
-# Newsletter Helper Functions
-def validate_newsletter_email(email):
-    """Validate newsletter email address."""
-    if not email or '@' not in email or '.' not in email.split('@')[-1]:
-        return False, 'Please enter a valid email address.'
-    
-    # Block disposable email domains
-    disposable_domains = ['tempmail.com', 'throwaway.com', 'mailinator.com', 'guerrillamail.com', 
-                          'fakeinbox.com', '10minutemail.com', 'trashmail.com']
-    email_domain = email.split('@')[-1].lower()
-    if email_domain in disposable_domains:
-        return False, 'Please use a valid email address.'
-    
-    return True, None
-
-def check_newsletter_rate_limit():
-    """Check if user is rate limited for newsletter subscription."""
-    last_sub_time = session.get('last_newsletter_sub')
-    if not last_sub_time:
-        return True, None
-    
-    try:
-        if isinstance(last_sub_time, str):
-            time_diff = datetime.now() - datetime.fromisoformat(last_sub_time)
-        else:
-            time_diff = datetime.now() - last_sub_time
-        
-        if time_diff.total_seconds() < 10:
-            return False, 'Please wait a moment before subscribing again.'
-    except (ValueError, TypeError):
-        session.pop('last_newsletter_sub', None)
-    
-    return True, None
-
-def send_newsletter_confirmation_email(email, name):
-    """Send newsletter subscription confirmation email."""
-    if not app.config.get('MAIL_PASSWORD') or not app.config.get('MAIL_USERNAME'):
-        return False, 'Email service is not configured.'
-    
-    try:
-        sender = app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME', 'noreply@cafenextdoor.com'))
-        cafe_email = app.config.get('CAFE_EMAIL', 'cafenextdoor@protonmail.com')
-        
-        subject = 'Welcome to Cafe Next Door Newsletter!'
-        body = f'''Hello {name or 'there'},
-
-Thank you for subscribing to the Cafe Next Door newsletter!
-
-You'll now receive updates about:
-- New menu items and seasonal specials
-- Exclusive promotions and discounts
-- Events and happenings at the cafe
-- Tips and stories from our team
-
-We're excited to share our coffee journey with you!
-
-If you didn't subscribe to our newsletter, please ignore this email.
-
-To unsubscribe, please contact us at {cafe_email}.
-
-Best regards,
-Cafe Next Door Team'''
-        
-        msg = Message(
-            subject=subject,
-            recipients=[email],
-            body=body,
-            sender=sender
-        )
-        mail.send(msg)
-        print(f"Newsletter confirmation email sent to {email}")
-        return True, None
-    except Exception as e:
-        import traceback
-        error_msg = f'Error sending confirmation email: {str(e)}'
-        print(error_msg)
-        print(traceback.format_exc())
-        return False, error_msg
-
 # Newsletter Routes
 @app.route('/newsletter/subscribe', methods=['POST'])
 def newsletter_subscribe():
-    """Subscribe to newsletter - clean and simplified."""
-    conn = None
-    try:
-        # Get form data
-        email = request.form.get('email', '').strip().lower()
-        name = request.form.get('name', '').strip()
-        honeypot = request.form.get('website_url', '')
-        
-        # Honeypot check
-        if honeypot:
-            flash('Subscription failed.', 'error')
-            return redirect(request.referrer or url_for('index'))
-        
-        # Validate email
-        is_valid, error_msg = validate_newsletter_email(email)
-        if not is_valid:
-            flash(error_msg, 'error')
-            return redirect(request.referrer or url_for('index'))
-        
-        # Check rate limit
-        can_subscribe, rate_limit_msg = check_newsletter_rate_limit()
-        if not can_subscribe:
-            flash(rate_limit_msg, 'error')
-            return redirect(request.referrer or url_for('index'))
-        
-        # Connect to database
-        conn = get_db_connection()
-        
-        # Insert subscriber
-        try:
-            # Ensure name column exists
-            try:
-                conn.execute('INSERT INTO newsletter_subscribers (email, name) VALUES (?, ?)', 
-                           (email, name or None))
-            except sqlite3.OperationalError as e:
-                if 'no such column: name' in str(e).lower():
-                    try:
-                        conn.execute('ALTER TABLE newsletter_subscribers ADD COLUMN name TEXT')
-                        conn.commit()
-                    except sqlite3.OperationalError:
-                        pass  # Column might already exist
-                    conn.execute('INSERT INTO newsletter_subscribers (email, name) VALUES (?, ?)', 
-                               (email, name or None))
-                else:
-                    raise
-            
-            conn.commit()
-            
-            # Update rate limit
-            try:
-                session['last_newsletter_sub'] = datetime.now().isoformat()
-                session.permanent = True
-            except Exception:
-                pass  # Continue even if session fails
-            
-            # Send confirmation email (non-blocking)
-            email_sent, email_error = send_newsletter_confirmation_email(email, name)
-            if not email_sent:
-                print(f"Newsletter subscription succeeded but email failed: {email_error}")
-            
-            flash('Successfully subscribed to our newsletter!', 'success')
-            
-        except sqlite3.IntegrityError:
-            flash('This email is already subscribed.', 'info')
-        except Exception as db_error:
-            import traceback
-            print(f"Database error in newsletter subscription: {str(db_error)}")
-            print(traceback.format_exc())
-            flash('An error occurred during subscription. Please try again.', 'error')
-        
-        if conn:
+    """Subscribe to newsletter."""
+    email = request.form.get('email', '').strip().lower()
+    name = request.form.get('name', '').strip()
+    honeypot = request.form.get('website_url', '')  # Honeypot field
+    
+    # Honeypot check
+    if honeypot:
+        flash('Subscription failed.', 'error')
+        return redirect(request.referrer or url_for('index'))
+    
+    # Validate email
+    if not email or '@' not in email or '.' not in email.split('@')[-1]:
+        flash('Please enter a valid email address.', 'error')
+        return redirect(request.referrer or url_for('index'))
+    
+    # Block common disposable email domains
+    disposable_domains = ['tempmail.com', 'throwaway.com', 'mailinator.com', 'guerrillamail.com', 
+                          'fakeinbox.com', '10minutemail.com', 'trashmail.com']
+    email_domain = email.split('@')[-1]
+    if email_domain in disposable_domains:
+        flash('Please use a valid email address.', 'error')
+        return redirect(request.referrer or url_for('index'))
+    
+    # Rate limiting - check IP
+    ip_address = get_client_ip()
+    conn = get_db_connection()
+    
+    # Check for recent subscriptions from this IP (max 2 per minute)
+    one_minute_ago = datetime.now() - timedelta(minutes=1)
+    recent_subs = conn.execute('''
+        SELECT COUNT(*) FROM newsletter_subscribers 
+        WHERE created_at > ? AND id IN (
+            SELECT MAX(id) FROM newsletter_subscribers GROUP BY email
+        )
+    ''', (one_minute_ago.strftime('%Y-%m-%d %H:%M:%S'),)).fetchone()[0]
+    
+    # Simple rate limit using session
+    last_sub_time = session.get('last_newsletter_sub')
+    if last_sub_time:
+        time_diff = datetime.now() - datetime.fromisoformat(last_sub_time)
+        if time_diff.total_seconds() < 10:
             conn.close()
-        return redirect(request.referrer or url_for('index'))
-        
-    except Exception as e:
-        import traceback
-        print(f"Error in newsletter_subscribe: {str(e)}")
-        print(traceback.format_exc())
-        try:
-            if conn:
-                conn.close()
-        except:
-            pass
-        flash('An error occurred during subscription. Please try again.', 'error')
-        return redirect(request.referrer or url_for('index'))
+            flash('Please wait a moment before subscribing again.', 'error')
+            return redirect(request.referrer or url_for('index'))
+    
+    try:
+        conn.execute('INSERT INTO newsletter_subscribers (email, name) VALUES (?, ?)', (email, name or None))
+        conn.commit()
+        session['last_newsletter_sub'] = datetime.now().isoformat()
+        flash('Successfully subscribed to our newsletter!', 'success')
+    except sqlite3.IntegrityError:
+        flash('This email is already subscribed.', 'error')
+    conn.close()
+    return redirect(request.referrer or url_for('index'))
 
 @app.route('/admin/newsletter')
 @login_required
@@ -4857,9 +4988,16 @@ def admin_add_category():
     
     # Check if category already exists
     conn = get_db_connection()
-    existing = conn.execute('SELECT COUNT(*) FROM menu_items WHERE category = ?', (category_name,)).fetchone()
+    existing = conn.execute('SELECT COUNT(*) as count FROM menu_items WHERE category = ?', (category_name,)).fetchone()
     
-    if existing[0] > 0:
+    # Convert Row to dict if needed
+    if isinstance(existing, sqlite3.Row):
+        existing = dict(existing)
+        count = existing.get('count', 0)
+    else:
+        count = existing[0] if existing else 0
+    
+    if count > 0:
         flash(f'Category "{category_name}" already exists.', 'error')
         conn.close()
         return redirect(url_for('admin_categories'))
@@ -4880,7 +5018,11 @@ def admin_delete_category(category_name):
     conn = get_db_connection()
     
     # Check how many items use this category
-    item_count = conn.execute('SELECT COUNT(*) FROM menu_items WHERE category = ?', (category_name,)).fetchone()[0]
+    item_count_row = conn.execute('SELECT COUNT(*) as count FROM menu_items WHERE category = ?', (category_name,)).fetchone()
+    if isinstance(item_count_row, sqlite3.Row):
+        item_count = dict(item_count_row).get('count', 0)
+    else:
+        item_count = item_count_row[0] if item_count_row else 0
     
     if item_count == 0:
         flash('Category not found or already empty.', 'error')
@@ -4912,6 +5054,7 @@ def admin_delete_user(user_id):
 
 # Error Handlers
 @app.route('/debug/db-check')
+@login_required  # Protect debug routes
 def debug_db_check():
     """Debug route to check database state (remove in production)."""
     try:
@@ -4986,6 +5129,7 @@ def debug_db_check():
         return f"<h1>Error</h1><pre>{str(e)}\n{traceback.format_exc()}</pre>", 500
 
 @app.route('/debug/reseed-menu', methods=['GET', 'POST'])
+@admin_required  # Protect debug routes - admin only
 def debug_reseed_menu():
     """Debug route to force re-seed menu items (remove in production)."""
     try:
@@ -5037,6 +5181,7 @@ def debug_reseed_menu():
         return f"<h1>Error</h1><pre>{str(e)}\n{traceback.format_exc()}</pre>", 500
 
 @app.route('/debug/reset-admin', methods=['GET', 'POST'])
+@admin_required  # Protect debug routes - admin only
 def debug_reset_admin():
     """Debug route to reset/create admin user (remove in production)."""
     try:

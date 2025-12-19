@@ -36,10 +36,10 @@
                                     <option value="{{ cat }}" {% if item['category'] == cat %}selected{% endif %}>{{ cat }}</option>
                                 {% endfor %}
                             {% else %}
-                                <option value="Hot Drinks" {% if item['category'] == 'Hot Drinks' %}selected{% endif %}>Hot Drinks</option>
-                                <option value="Cold Drinks" {% if item['category'] == 'Cold Drinks' %}selected{% endif %}>Cold Drinks</option>
-                                <option value="Pastries" {% if item['category'] == 'Pastries' %}selected{% endif %}>Pastries</option>
-                                <option value="Desserts" {% if item['category'] == 'Desserts' %}selected{% endif %}>Desserts</option>
+                            <option value="Hot Drinks" {% if item['category'] == 'Hot Drinks' %}selected{% endif %}>Hot Drinks</option>
+                            <option value="Cold Drinks" {% if item['category'] == 'Cold Drinks' %}selected{% endif %}>Cold Drinks</option>
+                            <option value="Pastries" {% if item['category'] == 'Pastries' %}selected{% endif %}>Pastries</option>
+                            <option value="Desserts" {% if item['category'] == 'Desserts' %}selected{% endif %}>Desserts</option>
                                 <option value="Light Meals" {% if item['category'] == 'Light Meals' %}selected{% endif %}>Light Meals</option>
                             {% endif %}
                             <option value="__new__">+ Add New Category</option>

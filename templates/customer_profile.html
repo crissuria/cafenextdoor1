@@ -39,6 +39,17 @@
                             <span class="detail-label">Email</span>
                             <span class="detail-value">{{ customer.email }}</span>
                         </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Email Status</span>
+                            <span class="detail-value">
+                                {% if customer.get('email_verified', 0) == 1 %}
+                                    <span class="status-badge status-active">✓ Verified</span>
+                                {% else %}
+                                    <span class="status-badge status-inactive">⚠ Not Verified</span>
+                                    <a href="{{ url_for('verify_email') }}" style="margin-left: 0.5rem; font-size: 0.85rem;">Verify</a>
+                                {% endif %}
+                            </span>
+                        </div>
                         {% if customer.phone %}
                         <div class="detail-row">
                             <span class="detail-label">Phone</span>

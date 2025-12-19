@@ -478,14 +478,33 @@ def init_database():
         )
     ''')
     
-    # Check if database is empty and seed it
+    # Check if database is empty and seed it, or update with new items
     try:
         cursor.execute('SELECT COUNT(*) FROM menu_items')
         count = cursor.fetchone()[0]
         
         if count == 0:
+            # Database is empty, seed it
             seed_database(cursor)
             conn.commit()
+            print("Database seeded with menu items")
+        else:
+            # Database has items, update existing items and add new ones
+            try:
+                # First, update prices/descriptions of existing items
+                updated_count = update_existing_menu_items(cursor)
+                if updated_count > 0:
+                    print(f"Updated {updated_count} existing menu items")
+                
+                # Then, add any new items that don't exist
+                added_count = update_menu_with_new_items(cursor)
+                if added_count > 0:
+                    print(f"Added {added_count} new menu items to existing database")
+                
+                if updated_count > 0 or added_count > 0:
+                    conn.commit()
+            except Exception as update_error:
+                print(f"Warning: Error updating menu items: {str(update_error)}")
     except Exception as e:
         print(f"Warning: Error checking/seeding menu_items: {str(e)}")
         # Try to seed anyway
@@ -612,6 +631,91 @@ def seed_database(cursor):
         INSERT INTO menu_items (name, description, price, category, image_url)
         VALUES (?, ?, ?, ?, ?)
     ''', menu_items)
+
+def update_existing_menu_items(cursor):
+    """Update prices and descriptions of existing menu items to match seed data."""
+    # Menu items data (same as seed_database)
+    menu_items_dict = {
+        # Hot Drinks
+        'Espresso': ('Strong and bold Italian coffee', 105, 'Hot Drinks'),
+        'Cappuccino': ('Espresso with steamed milk and foam', 160, 'Hot Drinks'),
+        'Latte': ('Smooth espresso with steamed milk', 165, 'Hot Drinks'),
+        'Americano': ('Espresso with hot water', 110, 'Hot Drinks'),
+        'Macchiato': ('Espresso with a dollop of foamed milk', 140, 'Hot Drinks'),
+        'Mocha': ('Espresso with chocolate and steamed milk', 175, 'Hot Drinks'),
+        'Flat White': ('Double espresso with microfoam milk', 170, 'Hot Drinks'),
+        'Cortado': ('Espresso with equal parts warm milk', 145, 'Hot Drinks'),
+        'Caffe Breve': ('Espresso with half-and-half cream', 180, 'Hot Drinks'),
+        'Hot Chocolate': ('Rich and creamy chocolate drink', 135, 'Hot Drinks'),
+        'Chai Latte': ('Spiced tea with steamed milk', 160, 'Hot Drinks'),
+        'Matcha Latte': ('Japanese green tea with steamed milk', 170, 'Hot Drinks'),
+        'Caramel Macchiato': ('Vanilla syrup, espresso, caramel drizzle', 190, 'Hot Drinks'),
+        'Vanilla Latte': ('Espresso with vanilla syrup and steamed milk', 170, 'Hot Drinks'),
+        'Hazelnut Latte': ('Espresso with hazelnut syrup and milk', 170, 'Hot Drinks'),
+        # Cold Drinks
+        'Iced Coffee': ('Cold brewed coffee over ice', 135, 'Cold Drinks'),
+        'Frappuccino': ('Blended coffee with ice and cream', 195, 'Cold Drinks'),
+        'Iced Latte': ('Espresso with cold milk over ice', 165, 'Cold Drinks'),
+        'Cold Brew': ('Smooth, slow-steeped cold coffee', 150, 'Cold Drinks'),
+        'Iced Mocha': ('Espresso, chocolate, and cold milk over ice', 175, 'Cold Drinks'),
+        'Iced Caramel Macchiato': ('Vanilla, espresso, caramel, and ice', 190, 'Cold Drinks'),
+        'Iced Americano': ('Espresso with cold water over ice', 110, 'Cold Drinks'),
+        'Nitro Cold Brew': ('Smooth, creamy cold brew on tap', 180, 'Cold Drinks'),
+        'Iced Matcha Latte': ('Japanese green tea with cold milk', 170, 'Cold Drinks'),
+        'Strawberry Smoothie': ('Fresh strawberries blended with yogurt', 150, 'Cold Drinks'),
+        'Mango Smoothie': ('Tropical mango blended to perfection', 150, 'Cold Drinks'),
+        'Iced Chai Latte': ('Spiced tea with cold milk over ice', 145, 'Cold Drinks'),
+        'Lemonade': ('Freshly squeezed lemonade', 100, 'Cold Drinks'),
+        'Iced Tea': ('Refreshing iced tea', 100, 'Cold Drinks'),
+        # Pastries
+        'Croissant': ('Buttery French pastry', 110, 'Pastries'),
+        'Blueberry Muffin': ('Fresh baked with blueberries', 130, 'Pastries'),
+        'Chocolate Chip Muffin': ('Classic muffin with chocolate chips', 130, 'Pastries'),
+        'Almond Croissant': ('Buttery croissant with almond filling', 150, 'Pastries'),
+        'Danish Pastry': ('Flaky pastry with fruit filling', 145, 'Pastries'),
+        'Cinnamon Roll': ('Sweet roll with cinnamon and glaze', 155, 'Pastries'),
+        'Bagel': ('Fresh New York style bagel', 105, 'Pastries'),
+        'Scone': ('Traditional British scone with jam', 135, 'Pastries'),
+        'Chocolate Croissant': ('Buttery croissant with chocolate', 150, 'Pastries'),
+        'Apple Turnover': ('Flaky pastry with apple filling', 150, 'Pastries'),
+        'Banana Bread': ('Moist homemade banana bread', 140, 'Pastries'),
+        'Donut': ('Classic glazed donut', 100, 'Pastries'),
+        # Desserts
+        'Chocolate Cake': ('Rich chocolate layer cake', 180, 'Desserts'),
+        'Cheesecake': ('Creamy New York style cheesecake', 195, 'Desserts'),
+        'Tiramisu': ('Classic Italian coffee-flavored dessert', 200, 'Desserts'),
+        'Brownie': ('Fudgy chocolate brownie', 120, 'Desserts'),
+        'Chocolate Chip Cookie': ('Warm, gooey chocolate chip cookie', 100, 'Desserts'),
+        'Red Velvet Cake': ('Moist red velvet with cream cheese frosting', 190, 'Desserts'),
+        'Carrot Cake': ('Spiced carrot cake with cream cheese', 170, 'Desserts'),
+        'Lemon Tart': ('Tangy lemon curd in buttery crust', 160, 'Desserts'),
+        'Chocolate Mousse': ('Light and airy chocolate mousse', 165, 'Desserts'),
+        'Ice Cream Sundae': ('Vanilla ice cream with toppings', 150, 'Desserts'),
+        'Apple Pie': ('Classic apple pie with flaky crust', 170, 'Desserts'),
+        'Pecan Pie': ('Rich pecan pie with caramel', 185, 'Desserts'),
+        'Key Lime Pie': ('Tart and creamy key lime pie', 170, 'Desserts'),
+        # Light Meals
+        'Avocado Toast': ('Smashed avocado on sourdough', 175, 'Light Meals'),
+        'Grilled Cheese': ('Classic grilled cheese sandwich', 160, 'Light Meals'),
+        'Turkey Sandwich': ('Sliced turkey with veggies', 190, 'Light Meals'),
+        'Chicken Panini': ('Grilled chicken panini', 200, 'Light Meals'),
+        'Caprese Sandwich': ('Fresh mozzarella, tomato, and basil', 180, 'Light Meals'),
+        'Quiche': ('Savory egg and cheese quiche', 170, 'Light Meals'),
+        'Caesar Salad': ('Fresh romaine with Caesar dressing', 185, 'Light Meals'),
+        'Greek Salad': ('Mixed greens with feta and olives', 185, 'Light Meals'),
+    }
+    
+    updated_count = 0
+    for name, (description, price, category) in menu_items_dict.items():
+        cursor.execute('''
+            UPDATE menu_items 
+            SET description = ?, price = ?, category = ?
+            WHERE name = ?
+        ''', (description, price, category, name))
+        if cursor.rowcount > 0:
+            updated_count += 1
+    
+    return updated_count
 
 def update_menu_with_new_items(cursor):
     """Add new menu items to existing database without duplicates."""
@@ -4513,6 +4617,57 @@ def debug_db_check():
         
         import json
         return f"<h1>Database Check</h1><pre>{json.dumps(result, indent=2)}</pre>", 200
+    except Exception as e:
+        import traceback
+        return f"<h1>Error</h1><pre>{str(e)}\n{traceback.format_exc()}</pre>", 500
+
+@app.route('/debug/reseed-menu', methods=['GET', 'POST'])
+def debug_reseed_menu():
+    """Debug route to force re-seed menu items (remove in production)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get current count before deletion
+        cursor.execute('SELECT COUNT(*) FROM menu_items')
+        old_count = cursor.fetchone()[0]
+        
+        # Delete all existing menu items (this will cascade delete related records)
+        # First, delete from order_items to avoid foreign key issues
+        try:
+            cursor.execute('DELETE FROM order_items')
+        except:
+            pass
+        
+        try:
+            cursor.execute('DELETE FROM menu_item_ingredients')
+        except:
+            pass
+        
+        try:
+            cursor.execute('DELETE FROM favorites')
+        except:
+            pass
+        
+        try:
+            cursor.execute('DELETE FROM reviews')
+        except:
+            pass
+        
+        # Now delete menu items
+        cursor.execute('DELETE FROM menu_items')
+        
+        # Re-seed the database
+        seed_database(cursor)
+        conn.commit()
+        
+        # Count items
+        cursor.execute('SELECT COUNT(*) FROM menu_items')
+        new_count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return f"<h1>Menu Re-seeded</h1><p>Successfully re-seeded menu.</p><p>Previous items: {old_count}</p><p>New items: {new_count}</p><p><a href='/menu'>View Menu</a> | <a href='/debug/db-check'>Check Database</a></p>", 200
     except Exception as e:
         import traceback
         return f"<h1>Error</h1><pre>{str(e)}\n{traceback.format_exc()}</pre>", 500

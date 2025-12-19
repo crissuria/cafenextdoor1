@@ -1993,28 +1993,35 @@ def admin_edit(item_id):
         description = request.form.get('description')
         price = request.form.get('price')
         category = request.form.get('category')
-        image_url = request.form.get('image_url', '')
+        
+        # Get current item to preserve existing image_url if not changed
+        current_item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
+        if not current_item:
+            conn.close()
+            flash('Menu item not found.', 'error')
+            return redirect(url_for('admin_menu'))
+        
+        # Preserve existing image_url by default
+        image_url = current_item['image_url'] or ''
         
         # Validate form data
         if not name or not price or not category:
             flash('Please fill in all required fields (name, price, category).', 'error')
-            item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
             categories_rows = conn.execute('SELECT DISTINCT category FROM menu_items ORDER BY category').fetchall()
             all_categories = [row['category'] for row in categories_rows]
             conn.close()
-            return render_template('admin_edit.html', item=dict(item), all_categories=all_categories)
+            return render_template('admin_edit.html', item=dict(current_item), all_categories=all_categories)
         
         try:
             price = float(price)
         except ValueError:
             flash('Please enter a valid price.', 'error')
-            item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
             categories_rows = conn.execute('SELECT DISTINCT category FROM menu_items ORDER BY category').fetchall()
             all_categories = [row['category'] for row in categories_rows]
             conn.close()
-            return render_template('admin_edit.html', item=dict(item), all_categories=all_categories)
+            return render_template('admin_edit.html', item=dict(current_item), all_categories=all_categories)
         
-        # Handle file upload
+        # Handle file upload - this takes priority over image_url field
         if 'image_file' in request.files:
             file = request.files['image_file']
             if file and file.filename != '' and allowed_file(file.filename):
@@ -2032,6 +2039,11 @@ def admin_edit(item_id):
                 filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
                 file.save(filepath)
                 image_url = url_for('static', filename=f'images/menu/{unique_filename}')
+        else:
+            # If no file uploaded, use the image_url from form (if provided)
+            form_image_url = request.form.get('image_url', '').strip()
+            if form_image_url:
+                image_url = form_image_url
         
         # Update database
         conn.execute('''

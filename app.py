@@ -519,22 +519,16 @@ def init_database():
             conn.commit()
             print("Database seeded with menu items")
         else:
-            # Database has items, update existing items and add new ones
+            # Database has items - ONLY add new items that don't exist
+            # DO NOT update existing items to preserve user changes (prices, descriptions, images, etc.)
             try:
-                # First, update prices/descriptions of existing items
-                updated_count = update_existing_menu_items(cursor)
-                if updated_count > 0:
-                    print(f"Updated {updated_count} existing menu items")
-                
-                # Then, add any new items that don't exist
+                # Only add new items that don't exist (preserves all user modifications)
                 added_count = update_menu_with_new_items(cursor)
                 if added_count > 0:
                     print(f"Added {added_count} new menu items to existing database")
-                
-                if updated_count > 0 or added_count > 0:
                     conn.commit()
             except Exception as update_error:
-                print(f"Warning: Error updating menu items: {str(update_error)}")
+                print(f"Warning: Error adding new menu items: {str(update_error)}")
     except Exception as e:
         print(f"Warning: Error checking/seeding menu_items: {str(e)}")
         # Try to seed anyway

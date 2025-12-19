@@ -2015,30 +2015,46 @@ def admin_edit(item_id):
             return render_template('admin_edit.html', item=dict(current_item), all_categories=all_categories)
         
         # Handle file upload - this takes priority over image_url field
+        file_uploaded = False
         if 'image_file' in request.files:
             file = request.files['image_file']
-            if file and file.filename != '' and allowed_file(file.filename):
-                # Create upload directory if it doesn't exist
-                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-                
-                # Generate secure filename
-                filename = secure_filename(file.filename)
-                # Add timestamp to make filename unique
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                name_part = secure_filename(name).replace(' ', '_')
-                file_ext = filename.rsplit('.', 1)[1].lower()
-                unique_filename = f"{name_part}_{timestamp}.{file_ext}"
-                
-                filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
-                file.save(filepath)
-                image_url = url_for('static', filename=f'images/menu/{unique_filename}')
-        else:
-            # If no file uploaded, use the image_url from form (if provided)
+            # Check if a file was actually selected (not just empty file object)
+            if file and file.filename and file.filename.strip() != '' and allowed_file(file.filename):
+                try:
+                    # Create upload directory if it doesn't exist
+                    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                    
+                    # Generate secure filename
+                    filename = secure_filename(file.filename)
+                    # Add timestamp to make filename unique
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    name_part = secure_filename(name).replace(' ', '_')
+                    file_ext = filename.rsplit('.', 1)[1].lower()
+                    unique_filename = f"{name_part}_{timestamp}.{file_ext}"
+                    
+                    filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
+                    file.save(filepath)
+                    image_url = url_for('static', filename=f'images/menu/{unique_filename}')
+                    file_uploaded = True
+                    print(f"DEBUG: File uploaded successfully: {unique_filename} -> {image_url}")
+                except Exception as upload_error:
+                    print(f"ERROR: File upload failed: {upload_error}")
+                    import traceback
+                    traceback.print_exc()
+                    flash(f'Error uploading image file: {str(upload_error)}', 'error')
+        
+        # If no file was uploaded, check the image_url form field
+        if not file_uploaded:
             form_image_url = request.form.get('image_url', '').strip()
             if form_image_url:
                 image_url = form_image_url
+                print(f"DEBUG: Using form image_url: {image_url}")
+            else:
+                # Keep existing image_url (already set from current_item)
+                print(f"DEBUG: Preserving existing image_url: {image_url}")
         
         # Update database
+        print(f"DEBUG: Updating menu item {item_id} with image_url: {image_url}")
         conn.execute('''
             UPDATE menu_items 
             SET name = ?, description = ?, price = ?, category = ?, image_url = ?
@@ -2068,6 +2084,12 @@ def admin_edit(item_id):
                         pass  # Skip invalid entries
         
         conn.commit()
+        
+        # Verify the update was successful
+        updated_item = conn.execute('SELECT image_url FROM menu_items WHERE id = ?', (item_id,)).fetchone()
+        if updated_item:
+            print(f"DEBUG: Verification - image_url in database is now: {updated_item['image_url']}")
+        
         conn.close()
         
         flash(f'Menu item "{name}" has been updated successfully!', 'success')
